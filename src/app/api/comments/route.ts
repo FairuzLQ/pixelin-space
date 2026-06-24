@@ -33,10 +33,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
 
+  const supabase = db()
+
+  if (fingerprint) {
+    const { data: blocked } = await supabase
+      .from('blocked_fingerprints')
+      .select('id')
+      .eq('fingerprint', fingerprint)
+      .maybeSingle()
+    if (blocked) return NextResponse.json({ error: 'blocked' }, { status: 403 })
+  }
+
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
   const ip_hash = hashIp(ip)
-
-  const supabase = db()
 
   const { data, error } = await supabase
     .from('comments')

@@ -46,9 +46,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
 
+  const supabase = db()
+
+  // check if fingerprint is blocked
+  if (fingerprint) {
+    const { data: blocked } = await supabase
+      .from('blocked_fingerprints')
+      .select('id')
+      .eq('fingerprint', fingerprint)
+      .maybeSingle()
+    if (blocked) return NextResponse.json({ error: 'blocked' }, { status: 403 })
+  }
+
   const ip_hash = hashIp(getIp(req))
 
-  const { data, error } = await db()
+  const { data, error } = await supabase
     .from('posts')
     .insert({ content, image_url, nickname, ip_hash, fingerprint })
     .select('id, content, image_url, nickname, created_at, reaction_count, comment_count')

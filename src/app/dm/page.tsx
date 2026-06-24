@@ -26,10 +26,7 @@ interface Conversation {
 export default function DmPage() {
   const [convs, setConvs] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
-  const [showNew, setShowNew] = useState(false)
-  const [invitee1, setInvitee1] = useState('')
-  const [invitee2, setInvitee2] = useState('')
-  const [creating, setCreating] = useState(false)
+  const myNickname = getNickname()
 
   useEffect(() => {
     const fp = getFingerprint()
@@ -41,75 +38,21 @@ export default function DmPage() {
       })
   }, [])
 
-  async function createConv() {
-    const nickname = getNickname()
-    const fp = getFingerprint()
-    const invitees = [invitee1.trim(), invitee2.trim()].filter(Boolean)
-    if (!nickname || invitees.length === 0 || creating) return
-    setCreating(true)
-
-    const res = await fetch('/api/dm', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        inviter_nickname: nickname,
-        inviter_fingerprint: fp,
-        invitee_nicknames: invitees,
-      }),
-    })
-    const data = await res.json()
-    if (data.conversation_id) {
-      window.location.href = `/dm/${data.conversation_id}`
-    }
-    setCreating(false)
-  }
-
-  const myNickname = getNickname()
-
   return (
     <NicknameGate>
       <Navbar />
       <main className="max-w-xl mx-auto px-4 py-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h1 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>direct messages</h1>
-          <button className="btn-primary text-xs px-3 py-2" onClick={() => setShowNew(v => !v)}>
-            + new dm
-          </button>
         </div>
-
-        {showNew && (
-          <div className="card p-4 flex flex-col gap-3">
-            <p className="text-xs" style={{ color: 'var(--text2)' }}>
-              start a dm — add up to 2 people (nicknames). max 3 total.
-            </p>
-            <input
-              className="w-full px-3 py-2 text-sm"
-              placeholder="nickname 1..."
-              value={invitee1}
-              onChange={e => setInvitee1(e.target.value)}
-            />
-            <input
-              className="w-full px-3 py-2 text-sm"
-              placeholder="nickname 2 (optional)..."
-              value={invitee2}
-              onChange={e => setInvitee2(e.target.value)}
-            />
-            <button
-              className="btn-primary text-xs px-4 py-2 self-end"
-              onClick={createConv}
-              disabled={creating || !invitee1.trim()}
-            >
-              {creating ? 'creating...' : 'start chat →'}
-            </button>
-          </div>
-        )}
 
         {loading ? (
           <p className="text-xs" style={{ color: 'var(--text2)' }}>loading...</p>
         ) : convs.length === 0 ? (
           <div className="text-center py-16" style={{ color: 'var(--text2)' }}>
             <div className="text-4xl mb-3">✉</div>
-            <p className="text-sm">no dms yet. start one above.</p>
+            <p className="text-sm">no dms yet.</p>
+            <p className="text-xs mt-2">tap <strong>✉ dm</strong> on someone&apos;s post to start a conversation.</p>
           </div>
         ) : (
           convs.map(conv => {

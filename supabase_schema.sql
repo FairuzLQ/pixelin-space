@@ -121,3 +121,27 @@ create policy "public upload post-images" on storage.objects for insert
   with check (bucket_id = 'post-images');
 create policy "public read post-images" on storage.objects for select
   using (bucket_id = 'post-images');
+
+-- =============================================
+-- RUN THIS BLOCK IF UPGRADING FROM INITIAL SCHEMA
+-- =============================================
+
+-- Blocked fingerprints (for moderation)
+create table if not exists blocked_fingerprints (
+  id uuid primary key default gen_random_uuid(),
+  fingerprint text not null unique,
+  reason text,
+  blocked_at timestamptz not null default now()
+);
+
+alter table blocked_fingerprints enable row level security;
+create policy "public read blocked" on blocked_fingerprints for select using (true);
+create policy "public insert blocked" on blocked_fingerprints for insert with check (true);
+create policy "public delete blocked" on blocked_fingerprints for delete using (true);
+create policy "public update blocked" on blocked_fingerprints for update using (true);
+
+-- Add decrement_comments RPC (if not exists)
+create or replace function decrement_comments(pid uuid)
+returns void language sql as $$
+  update posts set comment_count = greatest(0, comment_count - 1) where id = pid;
+$$;
