@@ -11,8 +11,28 @@ export default function NicknameGate({ children }: { children: React.ReactNode }
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setLocalNickname(getNickname())
-    setLoading(false)
+    fetch('/api/admin/announcement')
+      .then(r => r.json())
+      .then(d => {
+        if (d.session_reset_at) {
+          const lastReset = localStorage.getItem('ps_last_reset')
+          const serverReset = new Date(d.session_reset_at).getTime()
+          const clientReset = lastReset ? new Date(lastReset).getTime() : 0
+
+          if (serverReset > clientReset) {
+            // admin triggered reset — wipe all session data
+            Object.keys(localStorage)
+              .filter(k => k.startsWith('ps_'))
+              .forEach(k => localStorage.removeItem(k))
+            localStorage.setItem('ps_last_reset', d.session_reset_at)
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        setLocalNickname(getNickname())
+        setLoading(false)
+      })
   }, [])
 
   async function save() {

@@ -10,11 +10,16 @@ function db() {
 export async function GET() {
   const { data } = await db()
     .from('admin_settings')
-    .select('value')
-    .eq('key', 'announcement')
-    .maybeSingle()
+    .select('key, value')
+    .in('key', ['announcement', 'session_reset_at'])
 
-  return NextResponse.json({ announcement: data?.value ?? '' })
+  const map: Record<string, string> = {}
+  for (const row of data ?? []) map[row.key] = row.value
+
+  return NextResponse.json({
+    announcement: map['announcement'] ?? '',
+    session_reset_at: map['session_reset_at'] ?? null,
+  })
 }
 
 export async function PUT(req: NextRequest) {

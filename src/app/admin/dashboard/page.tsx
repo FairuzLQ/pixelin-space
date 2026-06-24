@@ -145,6 +145,13 @@ export default function AdminDashboard() {
     setBlocked(prev => prev.filter(b => b.fingerprint !== fingerprint))
   }
 
+  async function resetSessions() {
+    if (!confirm('Force reset semua user sessions? Semua user akan diminta pilih username baru saat next visit.')) return
+    const res = await fetch('/api/admin/reset-sessions', { method: 'POST' })
+    if (res.ok) alert('✓ Session reset berhasil. Semua user akan logout saat next visit.')
+    else alert('Gagal reset sessions.')
+  }
+
   async function purgeAll() {
     if (!confirm('⚠️ PURGE ALL: hapus SEMUA data (posts, comments, DMs, reactions, blocked). Tidak bisa di-undo!')) return
     if (!confirm('Beneran yakin? Ini hapus semuanya sekaligus!')) return
@@ -180,6 +187,13 @@ export default function AdminDashboard() {
           <span className="text-xs" style={{ color: 'var(--text2)' }}>
             {posts.length} posts · {comments.length} comments · {blocked.length} blocked
           </span>
+          <button
+            className="text-xs px-3 py-2 rounded-lg"
+            style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}
+            onClick={resetSessions}
+          >
+            ↺ reset sessions
+          </button>
           <button
             className="text-xs px-3 py-2 rounded-lg font-semibold"
             style={{ background: 'rgba(239,68,68,0.25)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)' }}
