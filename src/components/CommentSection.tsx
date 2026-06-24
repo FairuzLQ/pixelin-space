@@ -38,7 +38,11 @@ export default function CommentSection({
   async function submit() {
     const content = input.trim()
     const nickname = getNickname()
-    if (!content || !nickname || submitting) return
+    if (!content || submitting) return
+    if (!nickname) {
+      alert('username kamu expired atau belum diset — refresh halaman dulu ya')
+      return
+    }
     setSubmitting(true)
 
     const res = await fetch('/api/comments', {

@@ -1,6 +1,20 @@
 'use client'
 
-const NICKNAME_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
+const NICKNAME_TTL = 7 * 24 * 60 * 60 * 1000
+
+function genId(): string {
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+}
+
+function getFpId(): string {
+  if (typeof window === 'undefined') return 'server'
+  let id = localStorage.getItem('ps_fp_id')
+  if (!id) {
+    id = genId()
+    localStorage.setItem('ps_fp_id', id)
+  }
+  return id
+}
 
 export function getFingerprint(): string {
   if (typeof window === 'undefined') return 'server'
@@ -10,6 +24,7 @@ export function getFingerprint(): string {
     screen.width + 'x' + screen.height,
     Intl.DateTimeFormat().resolvedOptions().timeZone,
     navigator.hardwareConcurrency ?? '',
+    getFpId(), // unique per browser instance — prevents collision
   ].join('|')
 
   let hash = 0
@@ -31,12 +46,15 @@ export function getNickname(): string | null {
     localStorage.removeItem('ps_nickname')
     localStorage.removeItem('ps_nickname_created')
     localStorage.removeItem('ps_reactions')
+    localStorage.removeItem('ps_fp_id') // fresh identity next week
     return null
   }
   return nickname
 }
 
 export function setNickname(name: string): void {
+  // always generate a new fp_id on new identity (fresh week or first login)
+  localStorage.setItem('ps_fp_id', genId())
   localStorage.setItem('ps_nickname', name)
   localStorage.setItem('ps_nickname_created', Date.now().toString())
 }

@@ -30,13 +30,14 @@ export default function DmPage() {
 
   useEffect(() => {
     const fp = getFingerprint()
-    fetch(`/api/dm?fingerprint=${fp}`)
+    const nick = myNickname ?? ''
+    fetch(`/api/dm?fingerprint=${fp}&nickname=${encodeURIComponent(nick)}`)
       .then(r => r.json())
       .then(d => {
         setConvs(d.conversations ?? [])
         setLoading(false)
       })
-  }, [])
+  }, [myNickname])
 
   return (
     <NicknameGate>

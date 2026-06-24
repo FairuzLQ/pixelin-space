@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
       .in('conversation_id', myConvIds)
 
     if (shared && shared.length > 0) {
-      // verify it's only a 2-person convo (not a group)
       for (const s of shared) {
         const { count } = await supabase
           .from('dm_participants')
@@ -45,7 +44,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // create new conversation
+  // look up target's real fingerprint from their most recent post
+  const { data: targetPost } = await supabase
+    .from('posts')
+    .select('fingerprint')
+    .eq('nickname', target_nickname)
+    .not('fingerprint', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const target_fp = targetPost?.fingerprint ?? ('pending_' + target_nickname)
+
   const { data: conv, error } = await supabase
     .from('dm_conversations')
     .insert({ last_message_at: new Date().toISOString() })
@@ -54,8 +64,10 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  await supabase.from('dm_participants').insert({ conversation_id: conv.id, nickname: my_nickname, fingerprint: my_fingerprint })
-  await supabase.from('dm_participants').insert({ conversation_id: conv.id, nickname: target_nickname, fingerprint: 'pending_' + target_nickname })
+  await supabase.from('dm_participants').insert([
+    { conversation_id: conv.id, nickname: my_nickname, fingerprint: my_fingerprint },
+    { conversation_id: conv.id, nickname: target_nickname, fingerprint: target_fp },
+  ])
 
   return NextResponse.json({ conversation_id: conv.id }, { status: 201 })
 }

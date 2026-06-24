@@ -8,14 +8,20 @@ function db() {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const fingerprint = searchParams.get('fingerprint')
+  const nickname = searchParams.get('nickname')
   if (!fingerprint) return NextResponse.json({ error: 'missing fingerprint' }, { status: 400 })
 
   const supabase = db()
 
+  // search by fingerprint AND nickname to catch pending_xxx entries
+  const filter = nickname
+    ? `fingerprint.eq.${fingerprint},nickname.eq.${nickname}`
+    : `fingerprint.eq.${fingerprint}`
+
   const { data: participations } = await supabase
     .from('dm_participants')
     .select('conversation_id')
-    .eq('fingerprint', fingerprint)
+    .or(filter)
 
   const convIds = participations?.map(p => p.conversation_id) ?? []
   if (convIds.length === 0) return NextResponse.json({ conversations: [] })

@@ -39,7 +39,13 @@
       "Bash(dig pixelin.space A +short @1.1.1.1)",
       "Bash(mkdir -p \"/Users/lukmanulhakim/Documents/Website/Space/src/app/api/admin/posts/[id]\")",
       "Bash(mkdir -p \"/Users/lukmanulhakim/Documents/Website/Space/src/app/api/admin/comments/[id]\")",
-      "Bash(git commit -m 'chore: remove deprecated name from vercel.json *)"
+      "Bash(git commit -m 'chore: remove deprecated name from vercel.json *)",
+      "Bash(vercel project *)",
+      "Read(//Users/lukmanulhakim/.local/share/com.vercel.cli/**)",
+      "Read(//Users/lukmanulhakim/.vercel/**)",
+      "Read(//Users/lukmanulhakim/**)",
+      "Bash(vercel link *)",
+      "Bash(git commit *)"
     ],
     "additionalDirectories": [
       "/Users/lukmanulhakim/Documents/Website/Space/src/app/dm"
