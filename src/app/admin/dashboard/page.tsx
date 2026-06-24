@@ -113,6 +113,15 @@ export default function AdminDashboard() {
     setBlocked(prev => prev.filter(b => b.fingerprint !== fingerprint))
   }
 
+  async function clearAll() {
+    if (!confirm('⚠️ Ini akan menghapus SEMUA data (posts, comments, DMs, reactions, blocked). Yakin?')) return
+    if (!confirm('Beneran yakin? Tidak bisa di-undo!')) return
+    await fetch('/api/admin/purge', { method: 'DELETE' })
+    setPosts([])
+    setComments([])
+    setBlocked([])
+  }
+
   async function logout() {
     await fetch('/api/admin/login', { method: 'DELETE' })
     router.push('/admin')
@@ -131,6 +140,13 @@ export default function AdminDashboard() {
           <span className="text-xs" style={{ color: 'var(--text2)' }}>
             {posts.length} posts · {comments.length} comments · {blocked.length} blocked
           </span>
+          <button
+            className="text-xs px-3 py-2 rounded-lg"
+            style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171' }}
+            onClick={clearAll}
+          >
+            clear all
+          </button>
           <button className="btn-ghost text-xs px-3 py-2" onClick={logout}>logout</button>
         </div>
       </nav>

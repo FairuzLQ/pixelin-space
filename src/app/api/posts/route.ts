@@ -58,6 +58,19 @@ export async function POST(req: NextRequest) {
     if (blocked) return NextResponse.json({ error: 'blocked' }, { status: 403 })
   }
 
+  // 3 posts per 7 days per fingerprint
+  if (fingerprint) {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { count } = await supabase
+      .from('posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('fingerprint', fingerprint)
+      .gte('created_at', weekAgo)
+    if ((count ?? 0) >= 3) {
+      return NextResponse.json({ error: 'post_limit_reached' }, { status: 429 })
+    }
+  }
+
   const ip_hash = hashIp(getIp(req))
 
   const { data, error } = await supabase
