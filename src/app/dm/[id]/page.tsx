@@ -77,7 +77,7 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   return (
     <NicknameGate>
       <Navbar />
-      <main className="max-w-xl mx-auto px-4 py-4 flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+      <main className="max-w-xl mx-auto px-4 py-4 flex flex-col" style={{ height: 'calc(100dvh - 56px)' }}>
         <div className="flex items-center gap-3 mb-4">
           <button
             className="btn-ghost text-xs px-2 py-1"

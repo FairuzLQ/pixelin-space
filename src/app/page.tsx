@@ -12,7 +12,15 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const [cursor, setCursor] = useState<string | null>(null)
+  const [announcement, setAnnouncement] = useState<string | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/announcement')
+      .then(r => r.json())
+      .then(d => { if (d.announcement) setAnnouncement(d.announcement) })
+      .catch(() => {})
+  }, [])
 
   const loadPosts = useCallback(async (cur?: string | null) => {
     const url = cur ? `/api/posts?cursor=${encodeURIComponent(cur)}` : '/api/posts'
@@ -52,6 +60,11 @@ export default function FeedPage() {
     <NicknameGate>
       <Navbar />
       <main className="max-w-xl mx-auto px-4 py-6 flex flex-col gap-4">
+        {announcement && (
+          <div className="px-4 py-3 rounded-xl text-xs text-center" style={{ background: 'rgba(124,106,247,0.12)', color: 'var(--accent2)', border: '1px solid rgba(124,106,247,0.25)' }}>
+            {announcement}
+          </div>
+        )}
         <CreatePost onPosted={onPosted} />
 
         {loading && posts.length === 0 ? (

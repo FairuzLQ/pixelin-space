@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
   await db.from('reactions').delete().lt('created_at', cutoff)
   await db.from('comments').delete().lt('created_at', cutoff)
   await db.from('posts').delete().lt('created_at', cutoff)
+  await db.from('nickname_claims').delete().lt('claimed_at', cutoff)
 
   return NextResponse.json({ ok: true, cutoff })
 }

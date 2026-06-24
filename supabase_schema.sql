@@ -65,6 +65,19 @@ create table if not exists blocked_fingerprints (
   blocked_at timestamptz not null default now()
 );
 
+create table if not exists nickname_claims (
+  id uuid primary key default gen_random_uuid(),
+  nickname text not null unique,
+  fingerprint text not null,
+  claimed_at timestamptz not null default now()
+);
+
+create table if not exists admin_settings (
+  key text primary key,
+  value text not null default '',
+  updated_at timestamptz not null default now()
+);
+
 -- Indexes
 create index if not exists posts_created_at_idx on posts(created_at desc);
 create index if not exists posts_fingerprint_idx on posts(fingerprint);
@@ -103,6 +116,8 @@ alter table dm_conversations enable row level security;
 alter table dm_participants enable row level security;
 alter table dm_messages enable row level security;
 alter table blocked_fingerprints enable row level security;
+alter table nickname_claims enable row level security;
+alter table admin_settings enable row level security;
 
 -- Drop policies before recreating (avoids "already exists" error)
 do $$ begin
@@ -125,6 +140,13 @@ do $$ begin
   drop policy if exists "public insert blocked" on blocked_fingerprints;
   drop policy if exists "public delete blocked" on blocked_fingerprints;
   drop policy if exists "public update blocked" on blocked_fingerprints;
+  drop policy if exists "public read nickname_claims" on nickname_claims;
+  drop policy if exists "public insert nickname_claims" on nickname_claims;
+  drop policy if exists "public update nickname_claims" on nickname_claims;
+  drop policy if exists "public delete nickname_claims" on nickname_claims;
+  drop policy if exists "public read admin_settings" on admin_settings;
+  drop policy if exists "public insert admin_settings" on admin_settings;
+  drop policy if exists "public update admin_settings" on admin_settings;
 end $$;
 
 -- Recreate policies
@@ -153,6 +175,15 @@ create policy "public read blocked" on blocked_fingerprints for select using (tr
 create policy "public insert blocked" on blocked_fingerprints for insert with check (true);
 create policy "public delete blocked" on blocked_fingerprints for delete using (true);
 create policy "public update blocked" on blocked_fingerprints for update using (true);
+
+create policy "public read nickname_claims" on nickname_claims for select using (true);
+create policy "public insert nickname_claims" on nickname_claims for insert with check (true);
+create policy "public update nickname_claims" on nickname_claims for update using (true);
+create policy "public delete nickname_claims" on nickname_claims for delete using (true);
+
+create policy "public read admin_settings" on admin_settings for select using (true);
+create policy "public insert admin_settings" on admin_settings for insert with check (true);
+create policy "public update admin_settings" on admin_settings for update using (true);
 
 -- Storage bucket
 insert into storage.buckets (id, name, public)

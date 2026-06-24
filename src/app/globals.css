@@ -142,3 +142,17 @@ input::placeholder, textarea::placeholder {
   background: var(--border);
   border-radius: 2px;
 }
+
+/* Mobile: prevent iOS zoom on input focus */
+@media (max-width: 768px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
+/* Mobile: better touch targets */
+@media (max-width: 640px) {
+  .btn-primary, .btn-ghost {
+    min-height: 40px;
+  }
+}

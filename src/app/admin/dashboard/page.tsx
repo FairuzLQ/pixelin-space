@@ -31,7 +31,7 @@ interface Blocked {
   blocked_at: string
 }
 
-type Tab = 'posts' | 'comments' | 'blocked'
+type Tab = 'posts' | 'comments' | 'blocked' | 'settings'
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -49,6 +49,9 @@ export default function AdminDashboard() {
   const [comments, setComments] = useState<Comment[]>([])
   const [blocked, setBlocked] = useState<Blocked[]>([])
   const [loading, setLoading] = useState(true)
+  const [announcement, setAnnouncement] = useState('')
+  const [announcementSaving, setAnnouncementSaving] = useState(false)
+  const [announcementSaved, setAnnouncementSaved] = useState(false)
   const router = useRouter()
 
   const load = useCallback(async () => {
@@ -81,6 +84,25 @@ export default function AdminDashboard() {
   }, [router])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    fetch('/api/admin/announcement')
+      .then(r => r.json())
+      .then(d => setAnnouncement(d.announcement ?? ''))
+      .catch(() => {})
+  }, [])
+
+  async function saveAnnouncement() {
+    setAnnouncementSaving(true)
+    await fetch('/api/admin/announcement', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: announcement }),
+    })
+    setAnnouncementSaving(false)
+    setAnnouncementSaved(true)
+    setTimeout(() => setAnnouncementSaved(false), 2000)
+  }
 
   async function deletePost(id: string) {
     if (!confirm('Hapus post ini?')) return
@@ -171,7 +193,7 @@ export default function AdminDashboard() {
 
       <main className="max-w-3xl mx-auto px-4 py-6">
         <div className="flex gap-2 mb-6">
-          {(['posts', 'comments', 'blocked'] as Tab[]).map(t => (
+          {(['posts', 'comments', 'blocked', 'settings'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -181,7 +203,7 @@ export default function AdminDashboard() {
                 color: tab === t ? 'white' : 'var(--text2)',
               }}
             >
-              {t} {t === 'posts' ? `(${posts.length})` : t === 'comments' ? `(${comments.length})` : `(${blocked.length})`}
+              {t === 'posts' ? `posts (${posts.length})` : t === 'comments' ? `comments (${comments.length})` : t === 'blocked' ? `blocked (${blocked.length})` : 'settings'}
             </button>
           ))}
         </div>
@@ -268,6 +290,37 @@ export default function AdminDashboard() {
               </div>
             ))}
             {comments.length === 0 && <p className="text-xs" style={{ color: 'var(--text2)' }}>no comments yet</p>}
+          </div>
+        )}
+
+        {tab === 'settings' && (
+          <div className="flex flex-col gap-4">
+            <div className="card p-4 flex flex-col gap-3">
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>site announcement</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text2)' }}>
+                  ditampilkan sebagai banner di atas feed. kosongkan untuk menyembunyikan.
+                </p>
+              </div>
+              <textarea
+                className="w-full px-3 py-2 text-sm resize-none"
+                rows={3}
+                maxLength={200}
+                placeholder="contoh: posts & username reset tiap Minggu tengah malam ✦"
+                value={announcement}
+                onChange={e => { setAnnouncement(e.target.value); setAnnouncementSaved(false) }}
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs" style={{ color: 'var(--text2)' }}>{announcement.length}/200</span>
+                <button
+                  className="btn-primary text-xs px-4 py-2"
+                  onClick={saveAnnouncement}
+                  disabled={announcementSaving}
+                >
+                  {announcementSaved ? '✓ saved' : announcementSaving ? 'saving...' : 'save'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
