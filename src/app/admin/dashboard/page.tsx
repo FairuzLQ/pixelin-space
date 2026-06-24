@@ -85,14 +85,22 @@ export default function AdminDashboard() {
   async function deletePost(id: string) {
     if (!confirm('Hapus post ini?')) return
     const res = await fetch(`/api/admin/posts/${id}`, { method: 'DELETE' })
-    if (!res.ok) { alert(`Gagal hapus: ${res.status}`); return }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      alert(`Gagal hapus post (${res.status}): ${body.error ?? 'unknown error'}`)
+      return
+    }
     setPosts(prev => prev.filter(p => p.id !== id))
   }
 
   async function deleteComment(id: string) {
     if (!confirm('Hapus komentar ini?')) return
     const res = await fetch(`/api/admin/comments/${id}`, { method: 'DELETE' })
-    if (!res.ok) { alert(`Gagal hapus: ${res.status}`); return }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      alert(`Gagal hapus comment (${res.status}): ${body.error ?? 'unknown error'}`)
+      return
+    }
     setComments(prev => prev.filter(c => c.id !== id))
   }
 
@@ -115,10 +123,15 @@ export default function AdminDashboard() {
     setBlocked(prev => prev.filter(b => b.fingerprint !== fingerprint))
   }
 
-  async function clearAll() {
-    if (!confirm('⚠️ Ini akan menghapus SEMUA data (posts, comments, DMs, reactions, blocked). Yakin?')) return
-    if (!confirm('Beneran yakin? Tidak bisa di-undo!')) return
-    await fetch('/api/admin/purge', { method: 'DELETE' })
+  async function purgeAll() {
+    if (!confirm('⚠️ PURGE ALL: hapus SEMUA data (posts, comments, DMs, reactions, blocked). Tidak bisa di-undo!')) return
+    if (!confirm('Beneran yakin? Ini hapus semuanya sekaligus!')) return
+    const res = await fetch('/api/admin/purge', { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      alert(`Purge gagal (${res.status}): ${body.error ?? JSON.stringify(body.errors)}`)
+      return
+    }
     setPosts([])
     setComments([])
     setBlocked([])
@@ -137,17 +150,20 @@ export default function AdminDashboard() {
         className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b"
         style={{ background: 'rgba(7,7,15,0.9)', backdropFilter: 'blur(12px)', borderColor: 'var(--border)' }}
       >
-        <span className="text-sm font-semibold" style={{ color: 'var(--accent2)' }}>⚙ admin panel</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold" style={{ color: 'var(--accent2)' }}>⚙ admin panel</span>
+          <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: 'rgba(124,106,247,0.15)', color: 'var(--accent2)' }}>v1.0.0</span>
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-xs" style={{ color: 'var(--text2)' }}>
             {posts.length} posts · {comments.length} comments · {blocked.length} blocked
           </span>
           <button
-            className="text-xs px-3 py-2 rounded-lg"
-            style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171' }}
-            onClick={clearAll}
+            className="text-xs px-3 py-2 rounded-lg font-semibold"
+            style={{ background: 'rgba(239,68,68,0.25)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)' }}
+            onClick={purgeAll}
           >
-            clear all
+            ☢ purge all
           </button>
           <button className="btn-ghost text-xs px-3 py-2" onClick={logout}>logout</button>
         </div>

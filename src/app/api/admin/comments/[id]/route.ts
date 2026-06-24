@@ -4,11 +4,22 @@ import { isAdminAuthed } from '@/lib/adminAuth'
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!await isAdminAuthed()) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
   const { id } = await params
-  const db = adminDb()
+
+  let db
+  try {
+    db = adminDb()
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
+
   const { data: comment } = await db.from('comments').select('post_id').eq('id', id).single()
   if (comment) await db.rpc('decrement_comments', { pid: comment.post_id })
-  const { error } = await db.from('comments').delete().eq('id', id)
+
+  const { data, error } = await db.from('comments').delete().eq('id', id).select('id')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data || data.length === 0) return NextResponse.json({ error: 'not_deleted' }, { status: 500 })
+
   return NextResponse.json({ ok: true })
 }
