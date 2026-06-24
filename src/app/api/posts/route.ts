@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function db() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+}
 
 function hashIp(ip: string) {
   return createHash('sha256').update(ip + 'pixelin_salt_2024').digest('hex').slice(0, 16)
@@ -24,7 +23,7 @@ export async function GET(req: NextRequest) {
   const cursor = searchParams.get('cursor')
   const limit = 20
 
-  let query = supabase
+  let query = db()
     .from('posts')
     .select('id, content, image_url, nickname, created_at, reaction_count, comment_count')
     .order('created_at', { ascending: false })
@@ -49,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   const ip_hash = hashIp(getIp(req))
 
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('posts')
     .insert({ content, image_url, nickname, ip_hash, fingerprint })
     .select('id, content, image_url, nickname, created_at, reaction_count, comment_count')

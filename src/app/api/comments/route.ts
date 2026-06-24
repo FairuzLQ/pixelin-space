@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function db() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+}
 
 function hashIp(ip: string) {
   return createHash('sha256').update(ip + 'pixelin_salt_2024').digest('hex').slice(0, 16)
@@ -16,7 +15,7 @@ export async function GET(req: NextRequest) {
   const post_id = searchParams.get('post_id')
   if (!post_id) return NextResponse.json({ error: 'missing post_id' }, { status: 400 })
 
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('comments')
     .select('id, post_id, content, nickname, created_at')
     .eq('post_id', post_id)
@@ -36,6 +35,8 @@ export async function POST(req: NextRequest) {
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
   const ip_hash = hashIp(ip)
+
+  const supabase = db()
 
   const { data, error } = await supabase
     .from('comments')

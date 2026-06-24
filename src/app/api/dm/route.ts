@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function db() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+}
 
-// GET /api/dm?fingerprint=xxx — list conversations for a fingerprint
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const fingerprint = searchParams.get('fingerprint')
   if (!fingerprint) return NextResponse.json({ error: 'missing fingerprint' }, { status: 400 })
+
+  const supabase = db()
 
   const { data: participations } = await supabase
     .from('dm_participants')
@@ -48,7 +48,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ conversations: result })
 }
 
-// POST /api/dm — create new conversation
 export async function POST(req: NextRequest) {
   const { inviter_nickname, inviter_fingerprint, invitee_nicknames } = await req.json()
 
@@ -56,10 +55,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
 
-  const totalParticipants = 1 + invitee_nicknames.length
-  if (totalParticipants > 3) {
+  if (1 + invitee_nicknames.length > 3) {
     return NextResponse.json({ error: 'max 3 participants' }, { status: 400 })
   }
+
+  const supabase = db()
 
   const { data: conv, error } = await supabase
     .from('dm_conversations')

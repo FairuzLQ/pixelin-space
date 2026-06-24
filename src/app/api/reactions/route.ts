@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function db() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+}
 
 export async function POST(req: NextRequest) {
   const { post_id, type, fingerprint } = await req.json()
@@ -12,7 +11,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
 
-  // toggle: remove if exists, add if not
+  const supabase = db()
+
   const { data: existing } = await supabase
     .from('reactions')
     .select('id')
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   if (!post_id) return NextResponse.json({ error: 'missing post_id' }, { status: 400 })
 
-  const { data } = await supabase
+  const { data } = await db()
     .from('reactions')
     .select('type, fingerprint')
     .eq('post_id', post_id)

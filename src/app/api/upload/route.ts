@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function db() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+}
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
@@ -13,6 +12,8 @@ export async function POST(req: NextRequest) {
 
   const ext = file.name.split('.').pop() ?? 'jpg'
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
+  const supabase = db()
 
   const { error } = await supabase.storage
     .from('post-images')

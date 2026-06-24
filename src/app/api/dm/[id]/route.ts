@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function db() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+}
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const supabase = db()
 
   const { data: messages, error } = await supabase
     .from('dm_messages')
@@ -33,7 +33,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
 
-  // verify participant
+  const supabase = db()
+
   const { data: participant } = await supabase
     .from('dm_participants')
     .select('id, fingerprint')
@@ -45,7 +46,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'not a participant' }, { status: 403 })
   }
 
-  // if fingerprint is pending, bind it now
   if (participant.fingerprint.startsWith('pending_')) {
     await supabase
       .from('dm_participants')
