@@ -84,13 +84,15 @@ export default function AdminDashboard() {
 
   async function deletePost(id: string) {
     if (!confirm('Hapus post ini?')) return
-    await fetch(`/api/admin/posts/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/admin/posts/${id}`, { method: 'DELETE' })
+    if (!res.ok) { alert(`Gagal hapus: ${res.status}`); return }
     setPosts(prev => prev.filter(p => p.id !== id))
   }
 
   async function deleteComment(id: string) {
     if (!confirm('Hapus komentar ini?')) return
-    await fetch(`/api/admin/comments/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/admin/comments/${id}`, { method: 'DELETE' })
+    if (!res.ok) { alert(`Gagal hapus: ${res.status}`); return }
     setComments(prev => prev.filter(c => c.id !== id))
   }
 
