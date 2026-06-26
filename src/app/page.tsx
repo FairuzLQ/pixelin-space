@@ -80,32 +80,23 @@ export default function FeedPage() {
 
   useEffect(() => { loadPosts() }, [loadPosts])
 
-  // Realtime: subscribe to new posts via postgres_changes (posts table is public)
-  // Requires: ALTER PUBLICATION supabase_realtime ADD TABLE posts; (run once in Supabase SQL editor)
+  // Realtime: broadcast channel for feed events (no SQL/publication setup needed)
+  // API routes broadcast 'post-created' and 'post-deleted' to 'feed-events' channel
   useEffect(() => {
     const supabase = getSupabase()
     if (!supabase) return
 
     const channel = supabase
-      .channel('feed-posts')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'posts' },
-        (payload) => {
-          const newPost = payload.new as Post
-          if (latestCreatedAt.current && newPost.created_at > latestCreatedAt.current) {
-            setNewPostsBanner(true)
-          }
+      .channel('feed-events')
+      .on('broadcast', { event: 'post-created' }, ({ payload }) => {
+        const newPost = payload.post as Post
+        if (latestCreatedAt.current && newPost.created_at > latestCreatedAt.current) {
+          setNewPostsBanner(true)
         }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'posts' },
-        (payload) => {
-          const deletedId = (payload.old as { id?: string }).id
-          if (deletedId) setPosts(prev => prev.filter(p => p.id !== deletedId))
-        }
-      )
+      })
+      .on('broadcast', { event: 'post-deleted' }, ({ payload }) => {
+        if (payload.id) setPosts(prev => prev.filter((p: Post) => p.id !== payload.id))
+      })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }

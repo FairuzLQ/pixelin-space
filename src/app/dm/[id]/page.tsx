@@ -27,6 +27,8 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   // ref-based seen-IDs set for synchronous dedup across broadcast + poll + send
   const seenIds = useRef<Set<string>>(new Set())
   const accessDeniedRef = useRef(false)
+  // holds the subscribed Realtime channel so send() can broadcast through it
+  const realtimeChannelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>['channel']> | null>(null)
   const router = useRouter()
 
   const myNickname = getNickname()
@@ -101,7 +103,9 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  // Realtime: subscribe to broadcast channel for instant message delivery
+  // Realtime: subscribe to broadcast channel for instant message delivery.
+  // We save the channel ref so send() can broadcast through the already-open WebSocket
+  // instead of making a separate REST call from the server.
   useEffect(() => {
     const supabase = getSupabase()
     if (!supabase) return
@@ -113,7 +117,12 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    realtimeChannelRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+      realtimeChannelRef.current = null
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
@@ -156,8 +165,13 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
       })
       const data = await res.json()
       if (data.message) {
-        // addMessage deduplicates — safe even if broadcast already added it
-        addMessage(data.message)
+        addMessage(data.message) // add for sender immediately
+        // broadcast to other participants via the already-open WebSocket (self: false by default)
+        realtimeChannelRef.current?.send({
+          type: 'broadcast',
+          event: 'new-message',
+          payload: data.message,
+        }).catch(() => {})
       } else if (!res.ok) {
         setInput(content) // restore on error
       }

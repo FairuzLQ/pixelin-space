@@ -104,21 +104,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .update({ last_message_at: new Date().toISOString() })
     .eq('id', id)
 
-  // broadcast via Supabase Realtime REST — fire-and-forget, no WS connection needed
-  // topic must NOT include the "realtime:" prefix (subTopic convention from realtime-js source)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': anonKey,
-      'Authorization': `Bearer ${anonKey}`,
-    },
-    body: JSON.stringify({
-      messages: [{ topic: `dm-${id}`, event: 'new-message', payload: msg, private: false }]
-    }),
-  }).catch(() => {})
-
+  // broadcast is handled client-side by the sender's browser via the subscribed channel WebSocket
   return NextResponse.json({ message: msg }, { status: 201 })
 }
