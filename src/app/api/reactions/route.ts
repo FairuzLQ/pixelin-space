@@ -61,7 +61,8 @@ export async function GET(req: NextRequest) {
     }
 
     const res = NextResponse.json({ reactions: result })
-    res.headers.set('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30')
+    // private: response includes per-user "mine" data, must not be shared across users
+    res.headers.set('Cache-Control', 'private, max-age=15')
     return res
   }
 
@@ -74,6 +75,6 @@ export async function GET(req: NextRequest) {
   }
 
   const res = NextResponse.json({ counts, mine: Array.from(mine) })
-  res.headers.set('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30')
+  res.headers.set('Cache-Control', 'private, max-age=15')
   return res
 }

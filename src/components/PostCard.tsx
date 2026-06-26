@@ -48,13 +48,13 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
   const [imgExpanded, setImgExpanded] = useState(false)
   const [dmLoading, setDmLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const reactingRef = useRef(false)
   const router = useRouter()
-  const fp = useRef(getFingerprint())
 
   // only fetch individually if not pre-loaded from feed
   useEffect(() => {
     if (initialReactions) return
-    fetch(`/api/reactions?post_id=${post.id}&fingerprint=${fp.current}`)
+    fetch(`/api/reactions?post_id=${post.id}&fingerprint=${getFingerprint()}`)
       .then(r => r.json())
       .then(d => {
         setCounts(d.counts ?? {})
@@ -74,7 +74,8 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
   }, [initialReactions, post.id])
 
   const react = useCallback(async (type: string) => {
-    if (reacting) return
+    if (reactingRef.current) return
+    reactingRef.current = true
     setReacting(true)
     const wasActive = mine.has(type)
 
@@ -90,10 +91,11 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
     await fetch('/api/reactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ post_id: post.id, type, fingerprint: fp.current }),
+      body: JSON.stringify({ post_id: post.id, type, fingerprint: getFingerprint() }),
     })
+    reactingRef.current = false
     setReacting(false)
-  }, [mine, post.id, reacting])
+  }, [mine, post.id])
 
   async function openDm() {
     const myNickname = getNickname()
@@ -102,7 +104,7 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
     const res = await fetch('/api/dm/find-or-create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ my_nickname: myNickname, my_fingerprint: fp.current, target_nickname: post.nickname }),
+      body: JSON.stringify({ my_nickname: myNickname, my_fingerprint: getFingerprint(), target_nickname: post.nickname }),
     })
     const data = await res.json()
     if (data.conversation_id) router.push(`/dm/${data.conversation_id}`)
@@ -115,7 +117,7 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
     const res = await fetch(`/api/posts/${post.id}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fingerprint: fp.current }),
+      body: JSON.stringify({ fingerprint: getFingerprint() }),
     })
     if (res.ok) {
       onDeleted?.(post.id)

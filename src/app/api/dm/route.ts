@@ -13,9 +13,10 @@ export async function GET(req: NextRequest) {
 
   const supabase = db()
 
-  // search by fingerprint AND nickname to catch pending_xxx entries
+  // search by real fingerprint OR by pending entry (stored as 'pending_<nickname>' when added as DM target)
+  // using pending_ prefix avoids leaking another user's DMs via their nickname alone
   const filter = nickname
-    ? `fingerprint.eq.${fingerprint},nickname.eq.${nickname}`
+    ? `fingerprint.eq.${fingerprint},fingerprint.eq.pending_${nickname}`
     : `fingerprint.eq.${fingerprint}`
 
   const { data: participations } = await supabase

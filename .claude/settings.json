@@ -45,7 +45,10 @@
       "Read(//Users/lukmanulhakim/.vercel/**)",
       "Read(//Users/lukmanulhakim/**)",
       "Bash(vercel link *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Skill(code-review)",
+      "Skill(code-review:*)",
+      "Bash(git diff *)"
     ],
     "additionalDirectories": [
       "/Users/lukmanulhakim/Documents/Website/Space/src/app/dm"
