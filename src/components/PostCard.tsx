@@ -221,6 +221,7 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
         <CommentSection
           postId={post.id}
           onCommentAdded={() => setCommentCount(c => c + 1)}
+          onCommentDeleted={() => setCommentCount(c => Math.max(0, c - 1))}
         />
       )}
     </article>

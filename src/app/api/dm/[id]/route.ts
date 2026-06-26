@@ -5,17 +5,26 @@ function db() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const since = new URL(req.url).searchParams.get('since')
   const supabase = db()
 
-  const { data: messages, error } = await supabase
+  let msgQuery = supabase
     .from('dm_messages')
     .select('id, sender_nickname, content, created_at')
     .eq('conversation_id', id)
     .order('created_at', { ascending: true })
 
+  if (since) msgQuery = msgQuery.gt('created_at', since)
+
+  const { data: messages, error } = await msgQuery
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // participants only needed on first load (no since param)
+  if (since) {
+    return NextResponse.json({ messages: messages ?? [] })
+  }
 
   const { data: participants } = await supabase
     .from('dm_participants')

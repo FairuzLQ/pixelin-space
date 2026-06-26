@@ -8,6 +8,26 @@ import PostCard from '@/components/PostCard'
 import CreatePost from '@/components/CreatePost'
 import { getFingerprint } from '@/lib/fingerprint'
 
+function ScrollTopButton() {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const handler = () => setShow(window.scrollY > 600)
+    window.addEventListener('scroll', handler, { passive: true })
+    return () => window.removeEventListener('scroll', handler)
+  }, [])
+  if (!show) return null
+  return (
+    <button
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      className="fixed bottom-6 right-4 w-10 h-10 rounded-full flex items-center justify-center text-sm z-30 shadow-lg"
+      style={{ background: 'var(--bg2)', color: 'var(--accent2)', border: '1px solid var(--border)' }}
+      aria-label="scroll to top"
+    >
+      ↑
+    </button>
+  )
+}
+
 type ReactionsMap = Record<string, { counts: Record<string, number>; mine: string[] }>
 
 export default function FeedPage() {
@@ -105,6 +125,7 @@ export default function FeedPage() {
   return (
     <NicknameGate>
       <Navbar />
+      <ScrollTopButton />
       <main className="max-w-xl mx-auto px-4 py-6 flex flex-col gap-4">
         {announcement && (
           <div className="px-4 py-3 rounded-xl text-xs text-center" style={{ background: 'rgba(124,106,247,0.12)', color: 'var(--accent2)', border: '1px solid rgba(124,106,247,0.25)' }}>

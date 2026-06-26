@@ -7,6 +7,8 @@ import NicknameGate from '@/components/NicknameGate'
 import { getNickname, getFingerprint } from '@/lib/fingerprint'
 import type { DmMessage } from '@/types/database'
 
+const DM_SEEN_KEY = 'ps_dm_last_seen'
+
 interface Participant { nickname: string; fingerprint: string }
 
 export default function DmChatPage({ params }: { params: Promise<{ id: string }> }) {
@@ -17,31 +19,66 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const lastMsgCreatedAt = useRef<string | null>(null)
   const router = useRouter()
 
   const myNickname = getNickname()
-  const myFp = getFingerprint()
 
+  // mark DMs as seen and keep refreshing the timestamp while on this page
+  useEffect(() => {
+    function markSeen() {
+      localStorage.setItem(DM_SEEN_KEY, Date.now().toString())
+    }
+    markSeen()
+    const timer = setInterval(markSeen, 10000)
+    return () => clearInterval(timer)
+  }, [])
+
+  function isNearBottom() {
+    const el = scrollContainerRef.current
+    if (!el) return true
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }
+
+  function scrollToBottom(smooth = true) {
+    bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })
+  }
+
+  // initial load
   useEffect(() => {
     fetch(`/api/dm/${id}`)
       .then(r => r.json())
       .then(d => {
-        setMessages(d.messages ?? [])
+        const msgs: DmMessage[] = d.messages ?? []
+        setMessages(msgs)
         setParticipants(d.participants ?? [])
+        if (msgs.length > 0) lastMsgCreatedAt.current = msgs[msgs.length - 1].created_at
         setLoading(false)
+        // scroll to bottom instantly on first load (no smooth)
+        setTimeout(() => scrollToBottom(false), 50)
       })
   }, [id])
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  // poll for new messages every 5s
+  // poll only for NEW messages (since last message timestamp)
   useEffect(() => {
     const interval = setInterval(async () => {
-      const res = await fetch(`/api/dm/${id}`)
-      const data = await res.json()
-      setMessages(data.messages ?? [])
+      const since = lastMsgCreatedAt.current
+      if (!since) return
+      try {
+        const res = await fetch(`/api/dm/${id}?since=${encodeURIComponent(since)}`)
+        const data = await res.json()
+        const newMsgs: DmMessage[] = data.messages ?? []
+        if (newMsgs.length === 0) return
+
+        const atBottom = isNearBottom()
+        setMessages(prev => [...prev, ...newMsgs])
+        lastMsgCreatedAt.current = newMsgs[newMsgs.length - 1].created_at
+        // mark seen since user is on this page
+        localStorage.setItem(DM_SEEN_KEY, Date.now().toString())
+        // only auto-scroll if user was already at the bottom
+        if (atBottom) setTimeout(() => scrollToBottom(), 50)
+      } catch { /* ignore */ }
     }, 5000)
     return () => clearInterval(interval)
   }, [id])
@@ -56,13 +93,15 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
       body: JSON.stringify({
         content: input.trim(),
         sender_nickname: myNickname,
-        sender_fingerprint: myFp,
+        sender_fingerprint: getFingerprint(),
       }),
     })
     const data = await res.json()
     if (data.message) {
       setMessages(prev => [...prev, data.message])
+      lastMsgCreatedAt.current = data.message.created_at
       setInput('')
+      setTimeout(() => scrollToBottom(), 50)
     }
     setSending(false)
   }
@@ -78,7 +117,7 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
     <NicknameGate>
       <Navbar />
       <main className="max-w-xl mx-auto px-4 py-4 flex flex-col" style={{ height: 'calc(100dvh - 56px)' }}>
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4 shrink-0">
           <button
             className="btn-ghost text-xs px-2 py-1"
             onClick={() => router.push('/dm')}
@@ -86,18 +125,18 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
             ← back
           </button>
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
             style={{ background: 'var(--bg3)', color: 'var(--accent2)' }}
           >
             {title.slice(0, 2).toUpperCase()}
           </div>
-          <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{title}</span>
-          <span className="text-xs ml-auto" style={{ color: 'var(--text2)' }}>
+          <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{title}</span>
+          <span className="text-xs ml-auto shrink-0" style={{ color: 'var(--text2)' }}>
             {participants.length}/3
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto flex flex-col gap-2 pb-2">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto flex flex-col gap-2 pb-2">
           {loading && <p className="text-xs text-center" style={{ color: 'var(--text2)' }}>loading...</p>}
           {!loading && messages.length === 0 && (
             <p className="text-xs text-center py-8" style={{ color: 'var(--text2)' }}>
@@ -115,7 +154,7 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
                     </span>
                   )}
                   <div
-                    className="px-3 py-2 rounded-2xl text-sm"
+                    className="px-3 py-2 text-sm"
                     style={{
                       background: isMe ? 'var(--accent)' : 'var(--bg2)',
                       color: isMe ? 'white' : 'var(--text)',
@@ -135,14 +174,14 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
           <div ref={bottomRef} />
         </div>
 
-        <div className="flex gap-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex gap-2 pt-2 border-t shrink-0" style={{ borderColor: 'var(--border)' }}>
           <input
             className="flex-1 px-4 py-3 text-sm"
             style={{ borderRadius: '24px' }}
             placeholder="type something..."
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && send()}
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
             maxLength={500}
           />
           <button
