@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import NicknameGate from '@/components/NicknameGate'
 import { getNickname, getFingerprint } from '@/lib/fingerprint'
+import { getSupabase } from '@/lib/supabaseClient'
 import type { DmMessage } from '@/types/database'
 
 const DM_SEEN_KEY = 'ps_dm_last_seen'
@@ -72,7 +73,32 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
       .catch(() => { setAccessDenied(true); setLoading(false) })
   }, [id])
 
-  // poll only for NEW messages (since last message timestamp)
+  // Realtime: subscribe to broadcast channel for instant message delivery
+  useEffect(() => {
+    const supabase = getSupabase()
+    if (!supabase) return
+
+    const channel = supabase
+      .channel(`dm-${id}`)
+      .on('broadcast', { event: 'new-message' }, ({ payload }) => {
+        const msg = payload as DmMessage
+        const atBottom = isNearBottom()
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev // dedup with poll
+          return [...prev, msg]
+        })
+        lastMsgCreatedAt.current = msg.created_at
+        localStorage.setItem(DM_SEEN_KEY, Date.now().toString())
+        if (atBottom || msg.sender_nickname === myNicknameRef.current) {
+          setTimeout(() => scrollToBottom(), 50)
+        }
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [id])
+
+  // Fallback poll (30s) — catches messages if Realtime WS disconnects
   useEffect(() => {
     const interval = setInterval(async () => {
       const since = lastMsgCreatedAt.current
@@ -84,14 +110,17 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
         if (newMsgs.length === 0) return
 
         const atBottom = isNearBottom()
-        setMessages(prev => [...prev, ...newMsgs])
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id))
+          const fresh = newMsgs.filter(m => !existingIds.has(m.id))
+          if (fresh.length === 0) return prev
+          return [...prev, ...fresh]
+        })
         lastMsgCreatedAt.current = newMsgs[newMsgs.length - 1].created_at
-        // mark seen since user is on this page
         localStorage.setItem(DM_SEEN_KEY, Date.now().toString())
-        // only auto-scroll if user was already at the bottom
         if (atBottom) setTimeout(() => scrollToBottom(), 50)
       } catch { /* ignore */ }
-    }, 5000)
+    }, 30000) // 30s fallback — Realtime handles the real-time delivery
     return () => clearInterval(interval)
   }, [id])
 

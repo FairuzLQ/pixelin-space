@@ -48,7 +48,8 @@
       "Bash(git commit *)",
       "Skill(code-review)",
       "Skill(code-review:*)",
-      "Bash(git diff *)"
+      "Bash(git diff *)",
+      "Bash(sort -k5 -rh)"
     ],
     "additionalDirectories": [
       "/Users/lukmanulhakim/Documents/Website/Space/src/app/dm"

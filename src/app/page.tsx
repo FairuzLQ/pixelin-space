@@ -7,6 +7,7 @@ import NicknameGate from '@/components/NicknameGate'
 import PostCard from '@/components/PostCard'
 import CreatePost from '@/components/CreatePost'
 import { getFingerprint } from '@/lib/fingerprint'
+import { getSupabase } from '@/lib/supabaseClient'
 
 function ScrollTopButton() {
   const [show, setShow] = useState(false)
@@ -79,7 +80,30 @@ export default function FeedPage() {
 
   useEffect(() => { loadPosts() }, [loadPosts])
 
-  // auto-refresh: check for new posts every 45s
+  // Realtime: subscribe to new posts via postgres_changes (posts table is public)
+  // Requires: ALTER PUBLICATION supabase_realtime ADD TABLE posts; (run once in Supabase SQL editor)
+  useEffect(() => {
+    const supabase = getSupabase()
+    if (!supabase) return
+
+    const channel = supabase
+      .channel('feed-posts')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'posts' },
+        (payload) => {
+          const newPost = payload.new as Post
+          if (latestCreatedAt.current && newPost.created_at > latestCreatedAt.current) {
+            setNewPostsBanner(true)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
+  // Fallback poll (60s) — catches new posts if Realtime is not yet enabled on table
   useEffect(() => {
     const timer = setInterval(async () => {
       try {
@@ -90,7 +114,7 @@ export default function FeedPage() {
           setNewPostsBanner(true)
         }
       } catch { /* ignore */ }
-    }, 45000)
+    }, 60000)
     return () => clearInterval(timer)
   }, [])
 

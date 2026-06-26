@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import imageCompression from 'browser-image-compression'
 import type { Post } from '@/types/database'
 import { getNickname, getFingerprint, getNicknameExpiresAt } from '@/lib/fingerprint'
 
@@ -41,6 +40,8 @@ export default function CreatePost({ onPosted }: Props) {
   async function pickImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    // lazy-load: not in initial bundle, only downloaded when user actually picks a photo
+    const { default: imageCompression } = await import('browser-image-compression')
     const compressed = await imageCompression(file, {
       maxSizeMB: 0.8,
       maxWidthOrHeight: 1200,
