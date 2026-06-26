@@ -26,11 +26,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 
-  // decrement before delete (best-effort)
-  await db().rpc('decrement_comments', { pid: comment.post_id })
-
+  // delete first — decrement only if delete succeeded to prevent count drift
   const { error } = await admin.from('comments').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await db().rpc('decrement_comments', { pid: comment.post_id })
 
   return NextResponse.json({ ok: true })
 }

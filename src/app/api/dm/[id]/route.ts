@@ -5,10 +5,34 @@ function db() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 }
 
+async function assertParticipant(supabase: ReturnType<typeof db>, convId: string, fingerprint: string, nickname: string): Promise<boolean> {
+  // valid if real fingerprint matches OR the pending entry for this nickname exists
+  const { data } = await supabase
+    .from('dm_participants')
+    .select('id')
+    .eq('conversation_id', convId)
+    .or(`fingerprint.eq.${fingerprint},fingerprint.eq.pending_${nickname}`)
+    .limit(1)
+    .maybeSingle()
+  return data !== null
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const since = new URL(req.url).searchParams.get('since')
+  const url = new URL(req.url)
+  const since = url.searchParams.get('since')
+  const fingerprint = url.searchParams.get('fingerprint')
+  const nickname = url.searchParams.get('nickname')
+
+  if (!fingerprint || !nickname) {
+    return NextResponse.json({ error: 'missing fingerprint or nickname' }, { status: 400 })
+  }
+
   const supabase = db()
+
+  // verify caller is a participant
+  const allowed = await assertParticipant(supabase, id, fingerprint, nickname)
+  if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   let msgQuery = supabase
     .from('dm_messages')
@@ -21,7 +45,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { data: messages, error } = await msgQuery
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // participants only needed on first load (no since param)
   if (since) {
     return NextResponse.json({ messages: messages ?? [] })
   }
@@ -55,6 +78,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'not a participant' }, { status: 403 })
   }
 
+  // verify fingerprint — allow if pending (first message upgrades fingerprint) or already matches
+  if (!participant.fingerprint.startsWith('pending_') && participant.fingerprint !== sender_fingerprint) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
+  // upgrade pending fingerprint on first message
   if (participant.fingerprint.startsWith('pending_')) {
     await supabase
       .from('dm_participants')

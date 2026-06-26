@@ -45,9 +45,17 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })
   }
 
+  function dmUrl(extra?: string) {
+    const fp = getFingerprint()
+    const nick = encodeURIComponent(myNickname ?? '')
+    const base = `/api/dm/${id}?fingerprint=${fp}&nickname=${nick}`
+    return extra ? `${base}&${extra}` : base
+  }
+
   // initial load
   useEffect(() => {
-    fetch(`/api/dm/${id}`)
+    if (!myNickname) return
+    fetch(dmUrl())
       .then(r => r.json())
       .then(d => {
         const msgs: DmMessage[] = d.messages ?? []
@@ -66,7 +74,7 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
       const since = lastMsgCreatedAt.current
       if (!since) return
       try {
-        const res = await fetch(`/api/dm/${id}?since=${encodeURIComponent(since)}`)
+        const res = await fetch(dmUrl(`since=${encodeURIComponent(since)}`))
         const data = await res.json()
         const newMsgs: DmMessage[] = data.messages ?? []
         if (newMsgs.length === 0) return

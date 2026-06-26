@@ -67,6 +67,7 @@ export default function CreatePost({ onPosted }: Props) {
     if (image) {
       const fd = new FormData()
       fd.append('file', image)
+      fd.append('fingerprint', getFingerprint())
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       const data = await res.json()
       if (data.url) image_url = data.url
