@@ -102,16 +102,28 @@ export default function FeedPage() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  // Fallback poll (60s) — catches new posts if Realtime is not yet enabled on table
+  // Fallback poll (60s) — catches new posts AND reconciles deletions
+  // if Realtime broadcast is unavailable (e.g. network issue or project config)
   useEffect(() => {
     const timer = setInterval(async () => {
       try {
         const res = await fetch('/api/posts')
         const data = await res.json()
         const newest: Post[] = data.posts ?? []
-        if (newest.length > 0 && latestCreatedAt.current && newest[0].created_at > latestCreatedAt.current) {
+        if (newest.length === 0) return
+
+        // show banner for new posts
+        if (latestCreatedAt.current && newest[0].created_at > latestCreatedAt.current) {
           setNewPostsBanner(true)
         }
+
+        // reconcile deletions: remove any post that should be on page 1 but is gone
+        // posts older than the oldest post in the response are on page 2+ — leave them
+        const newestIds = new Set(newest.map((p: Post) => p.id))
+        const oldestTs = newest[newest.length - 1].created_at
+        setPosts(prev => prev.filter((p: Post) =>
+          p.created_at < oldestTs || newestIds.has(p.id)
+        ))
       } catch { /* ignore */ }
     }, 60000)
     return () => clearInterval(timer)

@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  broadcastEvent('feed-events', 'post-created', { post: data })
+  await broadcastEvent('feed-events', 'post-created', { post: data })
 
   return NextResponse.json({ post: data }, { status: 201 })
 }

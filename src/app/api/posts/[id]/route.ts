@@ -32,7 +32,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { error } = await admin.from('posts').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  broadcastEvent('feed-events', 'post-deleted', { id })
+  await broadcastEvent('feed-events', 'post-deleted', { id })
 
   return NextResponse.json({ ok: true })
 }

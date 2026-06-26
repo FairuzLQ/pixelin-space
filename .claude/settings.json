@@ -49,7 +49,9 @@
       "Skill(code-review)",
       "Skill(code-review:*)",
       "Bash(git diff *)",
-      "Bash(sort -k5 -rh)"
+      "Bash(sort -k5 -rh)",
+      "Bash(node -e \"const c = require\\('./node_modules/@supabase/realtime-js/package.json'\\); console.log\\('realtime-js:', c.version\\)\")",
+      "Bash(node -e \"const c = require\\('./node_modules/@supabase/supabase-js/package.json'\\); console.log\\('supabase-js:', c.version\\)\")"
     ],
     "additionalDirectories": [
       "/Users/lukmanulhakim/Documents/Website/Space/src/app/dm"
