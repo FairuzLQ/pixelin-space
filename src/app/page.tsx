@@ -6,20 +6,39 @@ import Navbar from '@/components/Navbar'
 import NicknameGate from '@/components/NicknameGate'
 import PostCard from '@/components/PostCard'
 import CreatePost from '@/components/CreatePost'
+import { getFingerprint } from '@/lib/fingerprint'
+
+type ReactionsMap = Record<string, { counts: Record<string, number>; mine: string[] }>
 
 export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const [cursor, setCursor] = useState<string | null>(null)
+  const [reactionsMap, setReactionsMap] = useState<ReactionsMap>({})
   const [announcement, setAnnouncement] = useState<string | null>(null)
+  const [newPostsBanner, setNewPostsBanner] = useState(false)
   const loaderRef = useRef<HTMLDivElement>(null)
+  const latestCreatedAt = useRef<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/announcement')
       .then(r => r.json())
       .then(d => { if (d.announcement) setAnnouncement(d.announcement) })
       .catch(() => {})
+  }, [])
+
+  const fetchReactions = useCallback(async (postList: Post[]) => {
+    if (postList.length === 0) return
+    const fp = getFingerprint()
+    const ids = postList.map(p => p.id).join(',')
+    try {
+      const res = await fetch(`/api/reactions?post_ids=${ids}&fingerprint=${fp}`)
+      const data = await res.json()
+      if (data.reactions) {
+        setReactionsMap(prev => ({ ...prev, ...data.reactions }))
+      }
+    } catch { /* non-critical */ }
   }, [])
 
   const loadPosts = useCallback(async (cur?: string | null) => {
@@ -32,18 +51,40 @@ export default function FeedPage() {
     setHasMore(fetched.length === 20)
     if (fetched.length > 0) {
       setCursor(fetched[fetched.length - 1].created_at)
+      if (!cur) latestCreatedAt.current = fetched[0].created_at
     }
     setLoading(false)
-  }, [])
+    fetchReactions(fetched)
+  }, [fetchReactions])
 
   useEffect(() => { loadPosts() }, [loadPosts])
 
+  // auto-refresh: check for new posts every 45s
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch('/api/posts')
+        const data = await res.json()
+        const newest: Post[] = data.posts ?? []
+        if (newest.length > 0 && latestCreatedAt.current && newest[0].created_at > latestCreatedAt.current) {
+          setNewPostsBanner(true)
+        }
+      } catch { /* ignore */ }
+    }, 45000)
+    return () => clearInterval(timer)
+  }, [])
+
+  function loadNewPosts() {
+    setNewPostsBanner(false)
+    setLoading(true)
+    loadPosts()
+  }
+
+  // infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
-          loadPosts(cursor)
-        }
+        if (entries[0].isIntersecting && hasMore && !loading) loadPosts(cursor)
       },
       { threshold: 0.1 }
     )
@@ -54,6 +95,11 @@ export default function FeedPage() {
 
   function onPosted(post: Post) {
     setPosts(prev => [post, ...prev])
+    latestCreatedAt.current = post.created_at
+  }
+
+  function onDeleted(id: string) {
+    setPosts(prev => prev.filter(p => p.id !== id))
   }
 
   return (
@@ -65,7 +111,18 @@ export default function FeedPage() {
             {announcement}
           </div>
         )}
+
         <CreatePost onPosted={onPosted} />
+
+        {newPostsBanner && (
+          <button
+            onClick={loadNewPosts}
+            className="w-full py-2.5 rounded-xl text-xs font-medium"
+            style={{ background: 'rgba(124,106,247,0.2)', color: 'var(--accent2)', border: '1px solid rgba(124,106,247,0.35)' }}
+          >
+            ✦ ada post baru — tap untuk refresh
+          </button>
+        )}
 
         {loading && posts.length === 0 ? (
           <div className="flex flex-col gap-3">
@@ -87,7 +144,12 @@ export default function FeedPage() {
             )}
 
             {posts.map(post => (
-              <PostCard key={post.id} post={post} />
+              <PostCard
+                key={post.id}
+                post={post}
+                initialReactions={reactionsMap[post.id]}
+                onDeleted={onDeleted}
+              />
             ))}
 
             <div ref={loaderRef} className="py-4 text-center text-xs" style={{ color: 'var(--text2)' }}>

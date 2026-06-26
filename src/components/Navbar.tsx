@@ -3,10 +3,17 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { getNickname } from '@/lib/fingerprint'
+import { getNickname, getFingerprint } from '@/lib/fingerprint'
+
+const DM_SEEN_KEY = 'ps_dm_last_seen'
+
+function getLastSeen(): number {
+  try { return parseInt(localStorage.getItem(DM_SEEN_KEY) ?? '0', 10) } catch { return 0 }
+}
 
 export default function Navbar() {
   const [nickname, setNickname] = useState<string | null>(null)
+  const [hasUnread, setHasUnread] = useState(false)
   const pathname = usePathname()
 
   useEffect(() => {
@@ -16,15 +23,48 @@ export default function Navbar() {
     return () => window.removeEventListener('storage', handler)
   }, [])
 
+  // mark DMs as seen when on /dm pages
+  useEffect(() => {
+    if (pathname.startsWith('/dm')) {
+      localStorage.setItem(DM_SEEN_KEY, Date.now().toString())
+      setHasUnread(false)
+    }
+  }, [pathname])
+
+  // check for unread DMs every 30s
+  useEffect(() => {
+    async function check() {
+      const fp = getFingerprint()
+      const nick = getNickname()
+      if (!fp || fp === 'server' || !nick) return
+
+      try {
+        const res = await fetch(`/api/dm?fingerprint=${fp}&nickname=${encodeURIComponent(nick)}`)
+        const data = await res.json()
+        const convs = data.conversations ?? []
+        const lastSeen = getLastSeen()
+
+        const hasNew = convs.some((c: { last_message_at: string }) =>
+          new Date(c.last_message_at).getTime() > lastSeen
+        )
+        setHasUnread(hasNew)
+      } catch { /* ignore */ }
+    }
+
+    if (!pathname.startsWith('/dm')) {
+      check()
+      const timer = setInterval(check, 30000)
+      return () => clearInterval(timer)
+    }
+  }, [pathname])
+
   return (
     <nav
       className="sticky top-0 z-40 flex items-center justify-between px-3 sm:px-4 py-3 border-b"
       style={{ background: 'rgba(7,7,15,0.85)', backdropFilter: 'blur(12px)', borderColor: 'var(--border)' }}
     >
       <Link href="/" className="flex items-center gap-1.5 font-semibold text-sm shrink-0" style={{ color: 'var(--text)' }}>
-        <span style={{ color: 'var(--accent)' }}>✦</span>
-        <span className="hidden xs:inline">pixelin.space</span>
-        <span className="xs:hidden">pixelin</span>
+        <span style={{ color: 'var(--accent)' }}>✦</span> pixelin.space
       </Link>
 
       <div className="flex items-center gap-0.5 sm:gap-1 min-w-0">
@@ -37,10 +77,16 @@ export default function Navbar() {
         </Link>
         <Link
           href="/dm"
-          className="btn-ghost text-xs px-2 sm:px-3 py-2"
+          className="btn-ghost text-xs px-2 sm:px-3 py-2 relative"
           style={{ color: pathname.startsWith('/dm') ? 'var(--accent2)' : undefined }}
         >
           dms
+          {hasUnread && !pathname.startsWith('/dm') && (
+            <span
+              className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
+              style={{ background: 'var(--accent)' }}
+            />
+          )}
         </Link>
         {nickname && (
           <span

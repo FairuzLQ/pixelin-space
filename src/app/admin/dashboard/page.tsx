@@ -60,26 +60,19 @@ export default function AdminDashboard() {
       fetch('/api/admin/posts'),
       fetch('/api/admin/block'),
     ])
+    // commentsRes must wait since it uses same auth check
 
     if (postsRes.status === 401) { router.push('/admin'); return }
 
+    const commentsRes = await fetch('/api/admin/comments')
+
     const postsData = await postsRes.json()
     const blockedData = await blockedRes.json()
+    const commentsData = await commentsRes.json()
 
     setPosts(postsData.posts ?? [])
     setBlocked(blockedData.blocked ?? [])
-
-    // collect all comments from posts
-    const allComments: Comment[] = []
-    await Promise.all(
-      (postsData.posts ?? []).slice(0, 50).map(async (p: Post) => {
-        const r = await fetch(`/api/comments?post_id=${p.id}`)
-        const d = await r.json()
-        allComments.push(...(d.comments ?? []))
-      })
-    )
-    allComments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    setComments(allComments)
+    setComments(commentsData.comments ?? [])
     setLoading(false)
   }, [router])
 

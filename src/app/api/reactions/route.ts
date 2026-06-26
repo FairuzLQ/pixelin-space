@@ -12,7 +12,6 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = db()
-
   const { data: existing } = await supabase
     .from('reactions')
     .select('id')
@@ -35,15 +34,38 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const post_id = searchParams.get('post_id')
-  const fingerprint = searchParams.get('fingerprint')
+  const post_ids = searchParams.get('post_ids') // bulk: comma-separated
+  const fingerprint = searchParams.get('fingerprint') ?? ''
 
-  if (!post_id) return NextResponse.json({ error: 'missing post_id' }, { status: 400 })
+  if (!post_id && !post_ids) {
+    return NextResponse.json({ error: 'missing post_id or post_ids' }, { status: 400 })
+  }
+
+  const ids = post_ids ? post_ids.split(',').filter(Boolean) : [post_id!]
 
   const { data } = await db()
     .from('reactions')
-    .select('type, fingerprint')
-    .eq('post_id', post_id)
+    .select('post_id, type, fingerprint')
+    .in('post_id', ids)
 
+  if (post_ids) {
+    // bulk response: { reactions: { [postId]: { counts, mine } } }
+    const result: Record<string, { counts: Record<string, number>; mine: string[] }> = {}
+    for (const id of ids) result[id] = { counts: {}, mine: [] }
+
+    for (const r of data ?? []) {
+      const entry = result[r.post_id]
+      if (!entry) continue
+      entry.counts[r.type] = (entry.counts[r.type] ?? 0) + 1
+      if (fingerprint && r.fingerprint === fingerprint) entry.mine.push(r.type)
+    }
+
+    const res = NextResponse.json({ reactions: result })
+    res.headers.set('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30')
+    return res
+  }
+
+  // single response (legacy)
   const counts: Record<string, number> = {}
   const mine = new Set<string>()
   for (const r of data ?? []) {
@@ -51,5 +73,7 @@ export async function GET(req: NextRequest) {
     if (fingerprint && r.fingerprint === fingerprint) mine.add(r.type)
   }
 
-  return NextResponse.json({ counts, mine: Array.from(mine) })
+  const res = NextResponse.json({ counts, mine: Array.from(mine) })
+  res.headers.set('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30')
+  return res
 }
