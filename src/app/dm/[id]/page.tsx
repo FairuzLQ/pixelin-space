@@ -18,12 +18,15 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [accessDenied, setAccessDenied] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const lastMsgCreatedAt = useRef<string | null>(null)
+  const myNicknameRef = useRef<string | null>(null)
   const router = useRouter()
 
   const myNickname = getNickname()
+  myNicknameRef.current = myNickname
 
   // mark DMs as seen and keep refreshing the timestamp while on this page
   useEffect(() => {
@@ -45,27 +48,28 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })
   }
 
-  function dmUrl(extra?: string) {
+  function buildDmUrl(extra?: string) {
     const fp = getFingerprint()
-    const nick = encodeURIComponent(myNickname ?? '')
+    const nick = encodeURIComponent(myNicknameRef.current ?? '')
     const base = `/api/dm/${id}?fingerprint=${fp}&nickname=${nick}`
     return extra ? `${base}&${extra}` : base
   }
 
   // initial load
   useEffect(() => {
-    if (!myNickname) return
-    fetch(dmUrl())
-      .then(r => r.json())
-      .then(d => {
+    if (!myNicknameRef.current) return
+    fetch(buildDmUrl())
+      .then(async r => {
+        if (r.status === 403 || r.status === 400) { setAccessDenied(true); setLoading(false); return }
+        const d = await r.json()
         const msgs: DmMessage[] = d.messages ?? []
         setMessages(msgs)
         setParticipants(d.participants ?? [])
         if (msgs.length > 0) lastMsgCreatedAt.current = msgs[msgs.length - 1].created_at
         setLoading(false)
-        // scroll to bottom instantly on first load (no smooth)
         setTimeout(() => scrollToBottom(false), 50)
       })
+      .catch(() => { setAccessDenied(true); setLoading(false) })
   }, [id])
 
   // poll only for NEW messages (since last message timestamp)
@@ -74,7 +78,7 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
       const since = lastMsgCreatedAt.current
       if (!since) return
       try {
-        const res = await fetch(dmUrl(`since=${encodeURIComponent(since)}`))
+        const res = await fetch(buildDmUrl(`since=${encodeURIComponent(since)}`))
         const data = await res.json()
         const newMsgs: DmMessage[] = data.messages ?? []
         if (newMsgs.length === 0) return
@@ -145,13 +149,19 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
         </div>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto flex flex-col gap-2 pb-2">
-          {loading && <p className="text-xs text-center" style={{ color: 'var(--text2)' }}>loading...</p>}
-          {!loading && messages.length === 0 && (
+            {loading && <p className="text-xs text-center" style={{ color: 'var(--text2)' }}>loading...</p>}
+          {!loading && accessDenied && (
+            <div className="text-center py-12 flex flex-col gap-2">
+              <p className="text-sm" style={{ color: '#f87171' }}>conversation tidak ditemukan</p>
+              <button className="text-xs btn-ghost mx-auto" onClick={() => router.push('/dm')}>← kembali ke dms</button>
+            </div>
+          )}
+          {!loading && !accessDenied && messages.length === 0 && (
             <p className="text-xs text-center py-8" style={{ color: 'var(--text2)' }}>
               start the conversation ✦
             </p>
           )}
-          {messages.map(msg => {
+          {!accessDenied && messages.map(msg => {
             const isMe = msg.sender_nickname === myNickname
             return (
               <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>

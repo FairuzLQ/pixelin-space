@@ -169,42 +169,48 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       <nav
-        className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b"
+        className="sticky top-0 z-40 border-b"
         style={{ background: 'rgba(7,7,15,0.9)', backdropFilter: 'blur(12px)', borderColor: 'var(--border)' }}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold" style={{ color: 'var(--accent2)' }}>⚙ admin panel</span>
-          <span className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ background: 'rgba(124,106,247,0.15)', color: 'var(--accent2)' }}>v1.0.0</span>
+        {/* top row: title + logout */}
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold" style={{ color: 'var(--accent2)' }}>⚙ admin panel</span>
+            <span className="text-xs px-2 py-0.5 rounded-full font-mono hidden sm:inline" style={{ background: 'rgba(124,106,247,0.15)', color: 'var(--accent2)' }}>v1.0.0</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs hidden sm:inline" style={{ color: 'var(--text2)' }}>
+              {posts.length}p · {comments.length}c · {blocked.length}b
+            </span>
+            <button className="btn-ghost text-xs px-2.5 py-1.5" onClick={logout}>logout</button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: 'var(--text2)' }}>
-            {posts.length} posts · {comments.length} comments · {blocked.length} blocked
-          </span>
+        {/* bottom row: action buttons */}
+        <div className="flex items-center gap-2 px-4 pb-2.5">
           <button
-            className="text-xs px-3 py-2 rounded-lg"
+            className="text-xs px-3 py-1.5 rounded-lg"
             style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}
             onClick={resetSessions}
           >
             ↺ reset sessions
           </button>
           <button
-            className="text-xs px-3 py-2 rounded-lg font-semibold"
+            className="text-xs px-3 py-1.5 rounded-lg font-semibold"
             style={{ background: 'rgba(239,68,68,0.25)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)' }}
             onClick={purgeAll}
           >
             ☢ purge all
           </button>
-          <button className="btn-ghost text-xs px-3 py-2" onClick={logout}>logout</button>
         </div>
       </nav>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
           {(['posts', 'comments', 'blocked', 'settings'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className="text-xs px-4 py-2 rounded-lg"
+              className="text-xs px-3 py-2 rounded-lg shrink-0"
               style={{
                 background: tab === t ? 'var(--accent)' : 'var(--bg3)',
                 color: tab === t ? 'white' : 'var(--text2)',
@@ -336,8 +342,8 @@ export default function AdminDashboard() {
             {blocked.length === 0 && <p className="text-xs" style={{ color: 'var(--text2)' }}>no blocked users</p>}
             {blocked.map(b => (
               <div key={b.id} className="card p-4 flex items-center justify-between gap-3">
-                <div>
-                  <span className="text-sm font-mono" style={{ color: 'var(--text)' }}>{b.fingerprint}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm font-mono block truncate" style={{ color: 'var(--text)' }}>{b.fingerprint}</span>
                   <p className="text-xs mt-1" style={{ color: 'var(--text2)' }}>
                     {b.reason ?? 'no reason'} · {timeAgo(b.blocked_at)}
                   </p>

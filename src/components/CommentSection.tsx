@@ -144,10 +144,10 @@ export default function CommentSection({
                     <button
                       onClick={() => deleteComment(c.id)}
                       disabled={deletingId === c.id}
-                      className="text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
-                      style={{ color: '#f87171', background: 'rgba(239,68,68,0.1)' }}
+                      className="text-xs w-5 h-5 flex items-center justify-center rounded ml-auto shrink-0"
+                      style={{ color: '#f87171', background: 'rgba(239,68,68,0.15)' }}
                     >
-                      {deletingId === c.id ? '...' : '×'}
+                      {deletingId === c.id ? '·' : '×'}
                     </button>
                   )}
                 </div>
