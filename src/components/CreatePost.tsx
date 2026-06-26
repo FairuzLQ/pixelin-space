@@ -47,13 +47,13 @@ export default function CreatePost({ onPosted }: Props) {
       maxWidthOrHeight: 1200,
       useWebWorker: true,
     })
+    setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(compressed) })
     setImage(compressed)
-    setPreview(URL.createObjectURL(compressed))
   }
 
   function removeImage() {
+    setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null })
     setImage(null)
-    setPreview(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -71,7 +71,12 @@ export default function CreatePost({ onPosted }: Props) {
       fd.append('fingerprint', getFingerprint())
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       const data = await res.json()
-      if (data.url) image_url = data.url
+      if (!res.ok || !data.url) {
+        setError(data.error ?? 'upload gagal, coba lagi')
+        setUploading(false)
+        return
+      }
+      image_url = data.url
     }
 
     const res = await fetch('/api/posts', {

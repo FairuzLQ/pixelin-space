@@ -121,6 +121,8 @@ export default function FeedPage() {
   function loadNewPosts() {
     setNewPostsBanner(false)
     setLoading(true)
+    setCursor(null)   // reset cursor so infinite scroll starts from top after refresh
+    setHasMore(true)
     loadPosts()
   }
 

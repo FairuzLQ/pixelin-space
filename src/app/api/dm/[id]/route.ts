@@ -6,15 +6,15 @@ function db() {
 }
 
 async function assertParticipant(supabase: ReturnType<typeof db>, convId: string, fingerprint: string, nickname: string): Promise<boolean> {
-  // valid if real fingerprint matches OR the pending entry for this nickname exists
-  const { data } = await supabase
-    .from('dm_participants')
-    .select('id')
-    .eq('conversation_id', convId)
-    .or(`fingerprint.eq.${fingerprint},fingerprint.eq.pending_${nickname}`)
-    .limit(1)
-    .maybeSingle()
-  return data !== null
+  // two separate parameterized queries — no string interpolation into filter values
+  const byFp = supabase
+    .from('dm_participants').select('id', { count: 'exact', head: true })
+    .eq('conversation_id', convId).eq('fingerprint', fingerprint)
+  const byPending = supabase
+    .from('dm_participants').select('id', { count: 'exact', head: true })
+    .eq('conversation_id', convId).eq('fingerprint', `pending_${nickname}`)
+  const [r1, r2] = await Promise.all([byFp, byPending])
+  return (r1.count ?? 0) > 0 || (r2.count ?? 0) > 0
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

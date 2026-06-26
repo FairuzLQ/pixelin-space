@@ -24,6 +24,9 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const lastMsgCreatedAt = useRef<string | null>(null)
   const myNicknameRef = useRef<string | null>(null)
+  // ref-based seen-IDs set for synchronous dedup across broadcast + poll + send
+  const seenIds = useRef<Set<string>>(new Set())
+  const accessDeniedRef = useRef(false)
   const router = useRouter()
 
   const myNickname = getNickname()
@@ -56,21 +59,46 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
     return extra ? `${base}&${extra}` : base
   }
 
+  // helper: add a message if not already seen (synchronous via Set ref)
+  function addMessage(msg: DmMessage, scrollIfAtBottom = true) {
+    if (seenIds.current.has(msg.id)) return false
+    seenIds.current.add(msg.id)
+    const atBottom = isNearBottom()
+    lastMsgCreatedAt.current = msg.created_at
+    setMessages(prev => [...prev, msg])
+    localStorage.setItem(DM_SEEN_KEY, Date.now().toString())
+    if (scrollIfAtBottom && (atBottom || msg.sender_nickname === myNicknameRef.current)) {
+      setTimeout(() => scrollToBottom(), 50)
+    }
+    return true
+  }
+
   // initial load
   useEffect(() => {
     if (!myNicknameRef.current) return
     fetch(buildDmUrl())
       .then(async r => {
-        if (r.status === 403 || r.status === 400) { setAccessDenied(true); setLoading(false); return }
+        if (r.status === 403 || r.status === 400) {
+          accessDeniedRef.current = true
+          setAccessDenied(true)
+          setLoading(false)
+          return
+        }
         const d = await r.json()
         const msgs: DmMessage[] = d.messages ?? []
+        msgs.forEach(m => seenIds.current.add(m.id))
         setMessages(msgs)
         setParticipants(d.participants ?? [])
         if (msgs.length > 0) lastMsgCreatedAt.current = msgs[msgs.length - 1].created_at
         setLoading(false)
         setTimeout(() => scrollToBottom(false), 50)
       })
-      .catch(() => { setAccessDenied(true); setLoading(false) })
+      .catch(() => {
+        accessDeniedRef.current = true
+        setAccessDenied(true)
+        setLoading(false)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   // Realtime: subscribe to broadcast channel for instant message delivery
@@ -81,70 +109,63 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
     const channel = supabase
       .channel(`dm-${id}`)
       .on('broadcast', { event: 'new-message' }, ({ payload }) => {
-        const msg = payload as DmMessage
-        const atBottom = isNearBottom()
-        setMessages(prev => {
-          if (prev.some(m => m.id === msg.id)) return prev // dedup with poll
-          return [...prev, msg]
-        })
-        lastMsgCreatedAt.current = msg.created_at
-        localStorage.setItem(DM_SEEN_KEY, Date.now().toString())
-        if (atBottom || msg.sender_nickname === myNicknameRef.current) {
-          setTimeout(() => scrollToBottom(), 50)
-        }
+        addMessage(payload as DmMessage)
       })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   // Fallback poll (30s) — catches messages if Realtime WS disconnects
   useEffect(() => {
     const interval = setInterval(async () => {
+      if (accessDeniedRef.current) return // stop polling after access denied
       const since = lastMsgCreatedAt.current
       if (!since) return
       try {
         const res = await fetch(buildDmUrl(`since=${encodeURIComponent(since)}`))
+        if (!res.ok) return
         const data = await res.json()
         const newMsgs: DmMessage[] = data.messages ?? []
-        if (newMsgs.length === 0) return
-
-        const atBottom = isNearBottom()
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id))
-          const fresh = newMsgs.filter(m => !existingIds.has(m.id))
-          if (fresh.length === 0) return prev
-          return [...prev, ...fresh]
-        })
-        lastMsgCreatedAt.current = newMsgs[newMsgs.length - 1].created_at
-        localStorage.setItem(DM_SEEN_KEY, Date.now().toString())
-        if (atBottom) setTimeout(() => scrollToBottom(), 50)
+        let anyAdded = false
+        for (const msg of newMsgs) {
+          if (addMessage(msg, false)) anyAdded = true
+        }
+        if (anyAdded && isNearBottom()) setTimeout(() => scrollToBottom(), 50)
       } catch { /* ignore */ }
-    }, 30000) // 30s fallback — Realtime handles the real-time delivery
+    }, 30000)
     return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   async function send() {
     if (!input.trim() || !myNickname || sending) return
     setSending(true)
-
-    const res = await fetch(`/api/dm/${id}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: input.trim(),
-        sender_nickname: myNickname,
-        sender_fingerprint: getFingerprint(),
-      }),
-    })
-    const data = await res.json()
-    if (data.message) {
-      setMessages(prev => [...prev, data.message])
-      lastMsgCreatedAt.current = data.message.created_at
-      setInput('')
-      setTimeout(() => scrollToBottom(), 50)
+    const content = input.trim()
+    setInput('') // optimistically clear input
+    try {
+      const res = await fetch(`/api/dm/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          sender_nickname: myNickname,
+          sender_fingerprint: getFingerprint(),
+        }),
+      })
+      const data = await res.json()
+      if (data.message) {
+        // addMessage deduplicates — safe even if broadcast already added it
+        addMessage(data.message)
+      } else if (!res.ok) {
+        setInput(content) // restore on error
+      }
+    } catch {
+      setInput(content) // restore on network error
+    } finally {
+      setSending(false)
     }
-    setSending(false)
   }
 
   const others = participants.filter(p => p.nickname !== myNickname)
@@ -178,7 +199,7 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
         </div>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto flex flex-col gap-2 pb-2">
-            {loading && <p className="text-xs text-center" style={{ color: 'var(--text2)' }}>loading...</p>}
+          {loading && <p className="text-xs text-center" style={{ color: 'var(--text2)' }}>loading...</p>}
           {!loading && accessDenied && (
             <div className="text-center py-12 flex flex-col gap-2">
               <p className="text-sm" style={{ color: '#f87171' }}>conversation tidak ditemukan</p>
