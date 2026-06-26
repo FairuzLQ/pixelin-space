@@ -199,3 +199,9 @@ create policy "public upload post-images" on storage.objects
   for insert with check (bucket_id = 'post-images');
 create policy "public read post-images" on storage.objects
   for select using (bucket_id = 'post-images');
+
+-- Realtime publication (idempotent — safe to run multiple times)
+do $$ begin
+  alter publication supabase_realtime add table posts;
+exception when duplicate_object then null;
+end $$;
