@@ -105,18 +105,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('id', id)
 
   // broadcast via Supabase Realtime REST — fire-and-forget, no WS connection needed
-  // clients subscribed to channel `dm-<id>` receive this instantly
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  fetch(`${url}/realtime/v1/api/broadcast`, {
+  // topic must NOT include the "realtime:" prefix (subTopic convention from realtime-js source)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'apikey': key,
-      'Authorization': `Bearer ${key}`,
+      'apikey': anonKey,
+      'Authorization': `Bearer ${anonKey}`,
     },
     body: JSON.stringify({
-      messages: [{ topic: `realtime:dm-${id}`, event: 'new-message', payload: msg }]
+      messages: [{ topic: `dm-${id}`, event: 'new-message', payload: msg, private: false }]
     }),
   }).catch(() => {})
 
