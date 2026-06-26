@@ -98,6 +98,14 @@ export default function FeedPage() {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'posts' },
+        (payload) => {
+          const deletedId = (payload.old as { id?: string }).id
+          if (deletedId) setPosts(prev => prev.filter(p => p.id !== deletedId))
+        }
+      )
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
