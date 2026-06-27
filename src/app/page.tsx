@@ -33,12 +33,13 @@ type ReactionsMap = Record<string, { counts: Record<string, number>; mine: strin
 
 export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([])
+  // pending = new posts waiting to be shown (Twitter-style: not inserted immediately)
+  const [pendingPosts, setPendingPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const [cursor, setCursor] = useState<string | null>(null)
   const [reactionsMap, setReactionsMap] = useState<ReactionsMap>({})
   const [announcement, setAnnouncement] = useState<string | null>(null)
-  const [newPostsBanner, setNewPostsBanner] = useState(false)
   const loaderRef = useRef<HTMLDivElement>(null)
   const latestCreatedAt = useRef<string | null>(null)
 
@@ -56,9 +57,7 @@ export default function FeedPage() {
     try {
       const res = await fetch(`/api/reactions?post_ids=${ids}&fingerprint=${fp}`)
       const data = await res.json()
-      if (data.reactions) {
-        setReactionsMap(prev => ({ ...prev, ...data.reactions }))
-      }
+      if (data.reactions) setReactionsMap(prev => ({ ...prev, ...data.reactions }))
     } catch { /* non-critical */ }
   }, [])
 
@@ -80,8 +79,23 @@ export default function FeedPage() {
 
   useEffect(() => { loadPosts() }, [loadPosts])
 
-  // Realtime: broadcast channel for feed events (no SQL/publication setup needed)
-  // API routes broadcast 'post-created' and 'post-deleted' to 'feed-events' channel
+  // Add posts to pending queue (dedup by id)
+  const queuePending = useCallback((incoming: Post[]) => {
+    if (incoming.length === 0) return
+    setPendingPosts(prev => {
+      const existingIds = new Set(prev.map(p => p.id))
+      const fresh = incoming.filter(p => !existingIds.has(p.id))
+      return fresh.length > 0 ? [...fresh, ...prev] : prev
+    })
+  }, [])
+
+  // Remove a post from both visible and pending lists
+  const removePost = useCallback((id: string) => {
+    setPosts(prev => prev.filter(p => p.id !== id))
+    setPendingPosts(prev => prev.filter(p => p.id !== id))
+  }, [])
+
+  // Realtime: subscribe to feed-events broadcast channel
   useEffect(() => {
     const supabase = getSupabase()
     if (!supabase) return
@@ -91,19 +105,18 @@ export default function FeedPage() {
       .on('broadcast', { event: 'post-created' }, ({ payload }) => {
         const newPost = payload.post as Post
         if (latestCreatedAt.current && newPost.created_at > latestCreatedAt.current) {
-          setNewPostsBanner(true)
+          queuePending([newPost])
         }
       })
       .on('broadcast', { event: 'post-deleted' }, ({ payload }) => {
-        if (payload.id) setPosts(prev => prev.filter((p: Post) => p.id !== payload.id))
+        if (payload.id) removePost(payload.id as string)
       })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [])
+  }, [queuePending, removePost])
 
-  // Fallback poll (60s) — catches new posts AND reconciles deletions
-  // if Realtime broadcast is unavailable (e.g. network issue or project config)
+  // Poll every 15s — catches new posts + reconciles deletions when Realtime isn't working
   useEffect(() => {
     const timer = setInterval(async () => {
       try {
@@ -112,29 +125,35 @@ export default function FeedPage() {
         const newest: Post[] = data.posts ?? []
         if (newest.length === 0) return
 
-        // show banner for new posts
-        if (latestCreatedAt.current && newest[0].created_at > latestCreatedAt.current) {
-          setNewPostsBanner(true)
+        // queue any new posts not yet visible
+        if (latestCreatedAt.current) {
+          const fresh = newest.filter(p => p.created_at > latestCreatedAt.current!)
+          queuePending(fresh)
         }
 
-        // reconcile deletions: remove any post that should be on page 1 but is gone
-        // posts older than the oldest post in the response are on page 2+ — leave them
-        const newestIds = new Set(newest.map((p: Post) => p.id))
+        // reconcile deletions: page-1 posts missing from DB response were deleted
+        const newestIds = new Set(newest.map(p => p.id))
         const oldestTs = newest[newest.length - 1].created_at
-        setPosts(prev => prev.filter((p: Post) =>
-          p.created_at < oldestTs || newestIds.has(p.id)
-        ))
+        setPosts(prev => prev.filter(p => p.created_at < oldestTs || newestIds.has(p.id)))
+        setPendingPosts(prev => prev.filter(p => p.created_at < oldestTs || newestIds.has(p.id)))
       } catch { /* ignore */ }
-    }, 60000)
+    }, 15000)
     return () => clearInterval(timer)
-  }, [])
+  }, [queuePending])
 
-  function loadNewPosts() {
-    setNewPostsBanner(false)
-    setLoading(true)
-    setCursor(null)   // reset cursor so infinite scroll starts from top after refresh
-    setHasMore(true)
-    loadPosts()
+  // Twitter-style: prepend pending posts to the top without full reload
+  function showPendingPosts() {
+    setPosts(prev => {
+      const existingIds = new Set(prev.map(p => p.id))
+      const fresh = pendingPosts.filter(p => !existingIds.has(p.id))
+      return [...fresh, ...prev]
+    })
+    if (pendingPosts.length > 0) {
+      latestCreatedAt.current = pendingPosts[0].created_at
+      fetchReactions(pendingPosts)
+    }
+    setPendingPosts([])
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   // infinite scroll
@@ -153,10 +172,11 @@ export default function FeedPage() {
   function onPosted(post: Post) {
     setPosts(prev => [post, ...prev])
     latestCreatedAt.current = post.created_at
+    setPendingPosts(prev => prev.filter(p => p.id !== post.id))
   }
 
   function onDeleted(id: string) {
-    setPosts(prev => prev.filter(p => p.id !== id))
+    removePost(id)
   }
 
   return (
@@ -172,13 +192,17 @@ export default function FeedPage() {
 
         <CreatePost onPosted={onPosted} />
 
-        {newPostsBanner && (
+        {pendingPosts.length > 0 && (
           <button
-            onClick={loadNewPosts}
-            className="w-full py-2.5 rounded-xl text-xs font-medium"
-            style={{ background: 'rgba(124,106,247,0.2)', color: 'var(--accent2)', border: '1px solid rgba(124,106,247,0.35)' }}
+            onClick={showPendingPosts}
+            className="sticky top-2 z-20 w-full py-2.5 rounded-full text-xs font-medium transition-all"
+            style={{
+              background: 'var(--accent)',
+              color: 'white',
+              boxShadow: '0 4px 20px rgba(124,106,247,0.4)',
+            }}
           >
-            ✦ ada post baru — tap untuk refresh
+            ↑ {pendingPosts.length} post baru
           </button>
         )}
 
