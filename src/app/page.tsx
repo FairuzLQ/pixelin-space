@@ -120,7 +120,8 @@ export default function FeedPage() {
   useEffect(() => {
     const timer = setInterval(async () => {
       try {
-        const res = await fetch('/api/posts')
+        // ?_t= bypasses CDN s-maxage cache so poll always gets fresh DB data
+        const res = await fetch(`/api/posts?_t=${Date.now()}`)
         const data = await res.json()
         const newest: Post[] = data.posts ?? []
         if (newest.length === 0) return
@@ -131,11 +132,18 @@ export default function FeedPage() {
           queuePending(fresh)
         }
 
-        // reconcile deletions: page-1 posts missing from DB response were deleted
-        const newestIds = new Set(newest.map(p => p.id))
+        // reconcile deletions ONLY within the poll's date window:
+        // posts NEWER than newestTs → may be in pendingPosts, do NOT touch
+        // posts OLDER than oldestTs → on page 2+, do NOT touch
+        const newestTs = newest[0].created_at
         const oldestTs = newest[newest.length - 1].created_at
-        setPosts(prev => prev.filter(p => p.created_at < oldestTs || newestIds.has(p.id)))
-        setPendingPosts(prev => prev.filter(p => p.created_at < oldestTs || newestIds.has(p.id)))
+        const newestIds = new Set(newest.map(p => p.id))
+        setPosts(prev => prev.filter(p =>
+          p.created_at > newestTs || p.created_at < oldestTs || newestIds.has(p.id)
+        ))
+        setPendingPosts(prev => prev.filter(p =>
+          p.created_at > newestTs || p.created_at < oldestTs || newestIds.has(p.id)
+        ))
       } catch { /* ignore */ }
     }, 15000)
     return () => clearInterval(timer)
