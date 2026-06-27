@@ -7,7 +7,6 @@ import NicknameGate from '@/components/NicknameGate'
 import PostCard from '@/components/PostCard'
 import CreatePost from '@/components/CreatePost'
 import { getFingerprint } from '@/lib/fingerprint'
-import { getSupabase } from '@/lib/supabaseClient'
 
 function ScrollTopButton() {
   const [show, setShow] = useState(false)
@@ -33,8 +32,7 @@ type ReactionsMap = Record<string, { counts: Record<string, number>; mine: strin
 
 export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([])
-  // pending = new posts waiting to be shown (Twitter-style: not inserted immediately)
-  const [pendingPosts, setPendingPosts] = useState<Post[]>([])
+  const [newPostsBanner, setNewPostsBanner] = useState(false)
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const [cursor, setCursor] = useState<string | null>(null)
@@ -79,89 +77,37 @@ export default function FeedPage() {
 
   useEffect(() => { loadPosts() }, [loadPosts])
 
-  // Add posts to pending queue (dedup by id)
-  const queuePending = useCallback((incoming: Post[]) => {
-    if (incoming.length === 0) return
-    setPendingPosts(prev => {
-      const existingIds = new Set(prev.map(p => p.id))
-      const fresh = incoming.filter(p => !existingIds.has(p.id))
-      return fresh.length > 0 ? [...fresh, ...prev] : prev
-    })
-  }, [])
-
-  // Remove a post from both visible and pending lists
-  const removePost = useCallback((id: string) => {
-    setPosts(prev => prev.filter(p => p.id !== id))
-    setPendingPosts(prev => prev.filter(p => p.id !== id))
-  }, [])
-
-  // Realtime: subscribe to feed-events broadcast channel
-  useEffect(() => {
-    const supabase = getSupabase()
-    if (!supabase) return
-
-    const channel = supabase
-      .channel('feed-events')
-      .on('broadcast', { event: 'post-created' }, ({ payload }) => {
-        const newPost = payload.post as Post
-        if (latestCreatedAt.current && newPost.created_at > latestCreatedAt.current) {
-          queuePending([newPost])
-        }
-      })
-      .on('broadcast', { event: 'post-deleted' }, ({ payload }) => {
-        if (payload.id) removePost(payload.id as string)
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [queuePending, removePost])
-
-  // Poll every 15s — catches new posts + reconciles deletions when Realtime isn't working
+  // Poll every 30s: detect new posts → show banner, reconcile deletions
   useEffect(() => {
     const timer = setInterval(async () => {
       try {
-        // ?_t= bypasses CDN s-maxage cache so poll always gets fresh DB data
         const res = await fetch(`/api/posts?_t=${Date.now()}`)
         const data = await res.json()
         const newest: Post[] = data.posts ?? []
         if (newest.length === 0) return
 
-        // queue any new posts not yet visible
-        if (latestCreatedAt.current) {
-          const fresh = newest.filter(p => p.created_at > latestCreatedAt.current!)
-          queuePending(fresh)
+        if (latestCreatedAt.current && newest[0].created_at > latestCreatedAt.current) {
+          setNewPostsBanner(true)
         }
 
-        // reconcile deletions ONLY within the poll's date window:
-        // posts NEWER than newestTs → may be in pendingPosts, do NOT touch
-        // posts OLDER than oldestTs → on page 2+, do NOT touch
+        // reconcile deletions within page-1 window only
         const newestTs = newest[0].created_at
         const oldestTs = newest[newest.length - 1].created_at
         const newestIds = new Set(newest.map(p => p.id))
         setPosts(prev => prev.filter(p =>
           p.created_at > newestTs || p.created_at < oldestTs || newestIds.has(p.id)
         ))
-        setPendingPosts(prev => prev.filter(p =>
-          p.created_at > newestTs || p.created_at < oldestTs || newestIds.has(p.id)
-        ))
       } catch { /* ignore */ }
-    }, 15000)
+    }, 30000)
     return () => clearInterval(timer)
-  }, [queuePending])
+  }, [])
 
-  // Twitter-style: prepend pending posts to the top without full reload
-  function showPendingPosts() {
-    setPosts(prev => {
-      const existingIds = new Set(prev.map(p => p.id))
-      const fresh = pendingPosts.filter(p => !existingIds.has(p.id))
-      return [...fresh, ...prev]
-    })
-    if (pendingPosts.length > 0) {
-      latestCreatedAt.current = pendingPosts[0].created_at
-      fetchReactions(pendingPosts)
-    }
-    setPendingPosts([])
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  function refreshFeed() {
+    setNewPostsBanner(false)
+    setLoading(true)
+    setCursor(null)
+    setHasMore(true)
+    loadPosts()
   }
 
   // infinite scroll
@@ -180,11 +126,10 @@ export default function FeedPage() {
   function onPosted(post: Post) {
     setPosts(prev => [post, ...prev])
     latestCreatedAt.current = post.created_at
-    setPendingPosts(prev => prev.filter(p => p.id !== post.id))
   }
 
   function onDeleted(id: string) {
-    removePost(id)
+    setPosts(prev => prev.filter(p => p.id !== id))
   }
 
   return (
@@ -200,17 +145,13 @@ export default function FeedPage() {
 
         <CreatePost onPosted={onPosted} />
 
-        {pendingPosts.length > 0 && (
+        {newPostsBanner && (
           <button
-            onClick={showPendingPosts}
-            className="sticky top-2 z-20 w-full py-2.5 rounded-full text-xs font-medium transition-all"
-            style={{
-              background: 'var(--accent)',
-              color: 'white',
-              boxShadow: '0 4px 20px rgba(124,106,247,0.4)',
-            }}
+            onClick={refreshFeed}
+            className="w-full py-2.5 rounded-xl text-xs font-medium"
+            style={{ background: 'rgba(124,106,247,0.2)', color: 'var(--accent2)', border: '1px solid rgba(124,106,247,0.35)' }}
           >
-            ↑ {pendingPosts.length} post baru
+            ✦ ada post baru — tap untuk refresh
           </button>
         )}
 
