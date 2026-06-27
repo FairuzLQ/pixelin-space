@@ -119,7 +119,7 @@ alter table blocked_fingerprints enable row level security;
 alter table nickname_claims enable row level security;
 alter table admin_settings enable row level security;
 
--- Drop all old policies before recreating
+-- Drop all policies before recreating (idempotent)
 do $$ begin
   drop policy if exists "public read posts" on posts;
   drop policy if exists "public insert posts" on posts;
@@ -165,11 +165,8 @@ create policy "public read nickname_claims" on nickname_claims for select using 
 -- Admin settings: anon can read announcement; mutations via service_role only
 create policy "public read admin_settings" on admin_settings for select using (true);
 
--- DM tables: no anon access at all — reads and writes via service_role only
--- (access control enforced in TypeScript API code)
-
--- blocked_fingerprints: no anon access — reads and writes via service_role only
--- (prevents users from directly unblocking themselves via REST API)
+-- DM tables: no anon access — reads and writes via service_role only
+-- blocked_fingerprints: no anon access — prevents self-unblocking via REST API
 
 -- Storage bucket
 insert into storage.buckets (id, name, public)
@@ -181,14 +178,11 @@ do $$ begin
   drop policy if exists "public read post-images" on storage.objects;
 end $$;
 
--- Storage: images are public to read; upload only via service_role (API enforces auth)
-do $$ begin
-  drop policy if exists "public upload post-images" on storage.objects;
-end $$;
+-- Images are public to read; upload only via service_role (API enforces auth)
 create policy "public read post-images" on storage.objects
   for select using (bucket_id = 'post-images');
 
--- Realtime publication (idempotent — safe to run multiple times)
+-- Realtime publication (idempotent)
 do $$ begin
   alter publication supabase_realtime add table posts;
 exception when duplicate_object then null;
