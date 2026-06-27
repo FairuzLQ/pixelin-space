@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { adminDb } from '@/lib/supabaseAdmin'
 
-function db() {
+function anonDb() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 }
 
@@ -11,8 +12,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
 
-  const supabase = db()
-  const { data: existing } = await supabase
+  let db
+  try { db = adminDb() } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
+
+  const { data: existing } = await db
     .from('reactions')
     .select('id')
     .eq('post_id', post_id)
@@ -21,20 +26,20 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (existing) {
-    await supabase.from('reactions').delete().eq('id', existing.id)
-    await supabase.rpc('decrement_reactions', { pid: post_id })
+    await db.from('reactions').delete().eq('id', existing.id)
+    await db.rpc('decrement_reactions', { pid: post_id })
     return NextResponse.json({ action: 'removed' })
   }
 
-  await supabase.from('reactions').insert({ post_id, type, fingerprint })
-  await supabase.rpc('increment_reactions', { pid: post_id })
+  await db.from('reactions').insert({ post_id, type, fingerprint })
+  await db.rpc('increment_reactions', { pid: post_id })
   return NextResponse.json({ action: 'added' })
 }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const post_id = searchParams.get('post_id')
-  const post_ids = searchParams.get('post_ids') // bulk: comma-separated
+  const post_ids = searchParams.get('post_ids')
   const fingerprint = searchParams.get('fingerprint') ?? ''
 
   if (!post_id && !post_ids) {
@@ -43,13 +48,13 @@ export async function GET(req: NextRequest) {
 
   const ids = post_ids ? post_ids.split(',').filter(Boolean) : [post_id!]
 
-  const { data } = await db()
+  // reads can still use anon key (reactions are public data)
+  const { data } = await anonDb()
     .from('reactions')
     .select('post_id, type, fingerprint')
     .in('post_id', ids)
 
   if (post_ids) {
-    // bulk response: { reactions: { [postId]: { counts, mine } } }
     const result: Record<string, { counts: Record<string, number>; mine: string[] }> = {}
     for (const id of ids) result[id] = { counts: {}, mine: [] }
 
@@ -61,12 +66,10 @@ export async function GET(req: NextRequest) {
     }
 
     const res = NextResponse.json({ reactions: result })
-    // private: response includes per-user "mine" data, must not be shared across users
     res.headers.set('Cache-Control', 'private, max-age=15')
     return res
   }
 
-  // single response (legacy)
   const counts: Record<string, number> = {}
   const mine = new Set<string>()
   for (const r of data ?? []) {

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminDb } from '@/lib/supabaseAdmin'
 
 function db() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  try { return adminDb() } catch { return null }
 }
 
 export async function GET(req: NextRequest) {
@@ -12,19 +12,20 @@ export async function GET(req: NextRequest) {
   if (!fingerprint) return NextResponse.json({ error: 'missing fingerprint' }, { status: 400 })
 
   const supabase = db()
+  if (!supabase) return NextResponse.json({ error: 'server misconfigured' }, { status: 500 })
 
-  // search by real fingerprint OR by pending entry (stored as 'pending_<nickname>' when added as DM target)
-  // using pending_ prefix avoids leaking another user's DMs via their nickname alone
-  const filter = nickname
-    ? `fingerprint.eq.${fingerprint},fingerprint.eq.pending_${nickname}`
-    : `fingerprint.eq.${fingerprint}`
+  // two separate parameterized queries — no string interpolation into filter values
+  const q1 = supabase.from('dm_participants').select('conversation_id').eq('fingerprint', fingerprint)
+  const q2 = nickname
+    ? supabase.from('dm_participants').select('conversation_id').eq('fingerprint', `pending_${nickname}`)
+    : null
 
-  const { data: participations } = await supabase
-    .from('dm_participants')
-    .select('conversation_id')
-    .or(filter)
+  const [r1, r2] = await Promise.all([q1, q2 ?? Promise.resolve({ data: [] })])
+  const convIds = [
+    ...((r1.data ?? []).map(p => p.conversation_id)),
+    ...((r2.data ?? []).map(p => p.conversation_id)),
+  ].filter((id, i, arr) => arr.indexOf(id) === i) // dedup
 
-  const convIds = participations?.map(p => p.conversation_id) ?? []
   if (convIds.length === 0) return NextResponse.json({ conversations: [] })
 
   const { data: convs } = await supabase
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
     (convs ?? []).map(async (conv) => {
       const { data: participants } = await supabase
         .from('dm_participants')
-        .select('nickname, fingerprint')
+        .select('nickname') // fingerprint intentionally omitted
         .eq('conversation_id', conv.id)
 
       const { data: lastMsg } = await supabase
@@ -61,12 +62,12 @@ export async function POST(req: NextRequest) {
   if (!inviter_fingerprint || !inviter_nickname || !invitee_nicknames?.length) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
-
   if (1 + invitee_nicknames.length > 3) {
     return NextResponse.json({ error: 'max 3 participants' }, { status: 400 })
   }
 
   const supabase = db()
+  if (!supabase) return NextResponse.json({ error: 'server misconfigured' }, { status: 500 })
 
   const { data: conv, error } = await supabase
     .from('dm_conversations')

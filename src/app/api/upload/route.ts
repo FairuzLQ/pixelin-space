@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function db() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-}
+import { adminDb } from '@/lib/supabaseAdmin'
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'])
 const ALLOWED_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'])
@@ -39,8 +35,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'file too large (max 5 MB)' }, { status: 400 })
   }
 
+  let supa
+  try { supa = adminDb() } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
+
   // reject blocked fingerprints
-  const { data: blocked } = await db()
+  const { data: blocked } = await supa
     .from('blocked_fingerprints')
     .select('id')
     .eq('fingerprint', fingerprint)
@@ -50,15 +51,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'blocked' }, { status: 403 })
   }
 
-  const safeExt = ext  // already validated above
+  const safeExt = ext
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`
 
-  const { error } = await db().storage
+  const { error } = await supa.storage
     .from('post-images')
     .upload(filename, file, { contentType: file.type, upsert: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const { data: urlData } = db().storage.from('post-images').getPublicUrl(filename)
+  const { data: urlData } = supa.storage.from('post-images').getPublicUrl(filename)
   return NextResponse.json({ url: urlData.publicUrl })
 }

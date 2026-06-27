@@ -4,6 +4,10 @@ import { adminDb } from '@/lib/supabaseAdmin'
 // Vercel cron: runs every Sunday at midnight UTC
 // vercel.json: { "crons": [{ "path": "/api/cron/cleanup", "schedule": "0 0 * * 0" }] }
 export async function GET(req: NextRequest) {
+  // guard: if CRON_SECRET is unset the comparison "Bearer undefined" would always pass
+  if (!process.env.CRON_SECRET) {
+    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 })
+  }
   const auth = req.headers.get('authorization')
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })

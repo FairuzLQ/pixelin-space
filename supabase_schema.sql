@@ -119,7 +119,7 @@ alter table blocked_fingerprints enable row level security;
 alter table nickname_claims enable row level security;
 alter table admin_settings enable row level security;
 
--- Drop policies before recreating (avoids "already exists" error)
+-- Drop all old policies before recreating
 do $$ begin
   drop policy if exists "public read posts" on posts;
   drop policy if exists "public insert posts" on posts;
@@ -149,41 +149,27 @@ do $$ begin
   drop policy if exists "public update admin_settings" on admin_settings;
 end $$;
 
--- Recreate policies
-create policy "public read posts" on posts for select using (true);
-create policy "public insert posts" on posts for insert with check (true);
+-- SECURITY: Least-privilege RLS policies.
+-- All mutations go through the API server using the service_role key,
+-- which bypasses RLS entirely. The anon key (shipped to browsers) can
+-- only read public data — it cannot write or modify anything directly.
 
+-- Public feed data: anon can read only
+create policy "public read posts"     on posts     for select using (true);
 create policy "public read reactions" on reactions for select using (true);
-create policy "public insert reactions" on reactions for insert with check (true);
-create policy "public delete reactions" on reactions for delete using (true);
+create policy "public read comments"  on comments  for select using (true);
 
-create policy "public read comments" on comments for select using (true);
-create policy "public insert comments" on comments for insert with check (true);
-
-create policy "public read dm_conversations" on dm_conversations for select using (true);
-create policy "public insert dm_conversations" on dm_conversations for insert with check (true);
-create policy "public update dm_conversations" on dm_conversations for update using (true);
-
-create policy "public read dm_participants" on dm_participants for select using (true);
-create policy "public insert dm_participants" on dm_participants for insert with check (true);
-create policy "public update dm_participants" on dm_participants for update using (true);
-
-create policy "public read dm_messages" on dm_messages for select using (true);
-create policy "public insert dm_messages" on dm_messages for insert with check (true);
-
-create policy "public read blocked" on blocked_fingerprints for select using (true);
-create policy "public insert blocked" on blocked_fingerprints for insert with check (true);
-create policy "public delete blocked" on blocked_fingerprints for delete using (true);
-create policy "public update blocked" on blocked_fingerprints for update using (true);
-
+-- Nickname claims: anon can read (for availability check) but not mutate
 create policy "public read nickname_claims" on nickname_claims for select using (true);
-create policy "public insert nickname_claims" on nickname_claims for insert with check (true);
-create policy "public update nickname_claims" on nickname_claims for update using (true);
-create policy "public delete nickname_claims" on nickname_claims for delete using (true);
 
+-- Admin settings: anon can read announcement; mutations via service_role only
 create policy "public read admin_settings" on admin_settings for select using (true);
-create policy "public insert admin_settings" on admin_settings for insert with check (true);
-create policy "public update admin_settings" on admin_settings for update using (true);
+
+-- DM tables: no anon access at all — reads and writes via service_role only
+-- (access control enforced in TypeScript API code)
+
+-- blocked_fingerprints: no anon access — reads and writes via service_role only
+-- (prevents users from directly unblocking themselves via REST API)
 
 -- Storage bucket
 insert into storage.buckets (id, name, public)
@@ -195,8 +181,10 @@ do $$ begin
   drop policy if exists "public read post-images" on storage.objects;
 end $$;
 
-create policy "public upload post-images" on storage.objects
-  for insert with check (bucket_id = 'post-images');
+-- Storage: images are public to read; upload only via service_role (API enforces auth)
+do $$ begin
+  drop policy if exists "public upload post-images" on storage.objects;
+end $$;
 create policy "public read post-images" on storage.objects
   for select using (bucket_id = 'post-images');
 

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { adminDb } from '@/lib/supabaseAdmin'
 
-function db() {
+function anonDb() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 }
 
@@ -13,10 +14,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
 
-  const supabase = db()
+  let db
+  try { db = adminDb() } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
+
   const weekAgo = new Date(Date.now() - WEEK).toISOString()
 
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from('nickname_claims')
     .select('fingerprint, claimed_at')
     .eq('nickname', nickname.toLowerCase())
@@ -30,15 +35,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'taken' }, { status: 409 })
     }
 
-    // reclaim (same user or expired)
-    await supabase
+    await db
       .from('nickname_claims')
       .update({ fingerprint, claimed_at: new Date().toISOString() })
       .eq('nickname', nickname.toLowerCase())
     return NextResponse.json({ ok: true })
   }
 
-  await supabase
+  await db
     .from('nickname_claims')
     .insert({ nickname: nickname.toLowerCase(), fingerprint, claimed_at: new Date().toISOString() })
 
@@ -51,9 +55,9 @@ export async function GET(req: NextRequest) {
   if (!nickname) return NextResponse.json({ error: 'missing nickname' }, { status: 400 })
 
   const weekAgo = new Date(Date.now() - WEEK).toISOString()
-  const { data } = await db()
+  const { data } = await anonDb()
     .from('nickname_claims')
-    .select('fingerprint, claimed_at')
+    .select('claimed_at')  // fingerprint omitted — not needed for availability check
     .eq('nickname', nickname.toLowerCase())
     .maybeSingle()
 

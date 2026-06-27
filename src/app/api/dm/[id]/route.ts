@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminDb } from '@/lib/supabaseAdmin'
 
 function db() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  return adminDb()
 }
 
 async function assertParticipant(supabase: ReturnType<typeof db>, convId: string, fingerprint: string, nickname: string): Promise<boolean> {
-  // two separate parameterized queries — no string interpolation into filter values
   const byFp = supabase
     .from('dm_participants').select('id', { count: 'exact', head: true })
     .eq('conversation_id', convId).eq('fingerprint', fingerprint)
@@ -28,9 +27,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'missing fingerprint or nickname' }, { status: 400 })
   }
 
-  const supabase = db()
+  let supabase
+  try { supabase = db() } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
 
-  // verify caller is a participant
   const allowed = await assertParticipant(supabase, id, fingerprint, nickname)
   if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: participants } = await supabase
     .from('dm_participants')
-    .select('nickname, fingerprint')
+    .select('nickname') // fingerprint intentionally omitted from response
     .eq('conversation_id', id)
 
   return NextResponse.json({ messages: messages ?? [], participants: participants ?? [] })
@@ -64,8 +65,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!content || !sender_nickname || !sender_fingerprint) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
+  if (content.length > 2000) {
+    return NextResponse.json({ error: 'message too long' }, { status: 400 })
+  }
 
-  const supabase = db()
+  let supabase
+  try { supabase = db() } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
 
   const { data: participant } = await supabase
     .from('dm_participants')
@@ -78,12 +85,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'not a participant' }, { status: 403 })
   }
 
-  // verify fingerprint — allow if pending (first message upgrades fingerprint) or already matches
   if (!participant.fingerprint.startsWith('pending_') && participant.fingerprint !== sender_fingerprint) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  // upgrade pending fingerprint on first message
   if (participant.fingerprint.startsWith('pending_')) {
     await supabase
       .from('dm_participants')
@@ -104,6 +109,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .update({ last_message_at: new Date().toISOString() })
     .eq('id', id)
 
-  // broadcast is handled client-side by the sender's browser via the subscribed channel WebSocket
   return NextResponse.json({ message: msg }, { status: 201 })
 }

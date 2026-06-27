@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function db() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-}
+import { adminDb } from '@/lib/supabaseAdmin'
 
 export async function POST(req: NextRequest) {
   const { my_nickname, my_fingerprint, target_nickname } = await req.json()
@@ -14,7 +10,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'cannot dm yourself' }, { status: 400 })
   }
 
-  const supabase = db()
+  let supabase
+  try { supabase = adminDb() } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
 
   // find existing 1-on-1 conversation between the two nicknames
   const { data: myConvs } = await supabase
@@ -44,18 +43,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // look up target's real fingerprint from their most recent post
-  const { data: targetPost } = await supabase
-    .from('posts')
-    .select('fingerprint')
-    .eq('nickname', target_nickname)
-    .not('fingerprint', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  const target_fp = targetPost?.fingerprint ?? ('pending_' + target_nickname)
-
+  // always use pending_ for new DM targets — never look up the target's fingerprint
+  // from posts (that would expose fingerprints and enable impersonation)
   const { data: conv, error } = await supabase
     .from('dm_conversations')
     .insert({ last_message_at: new Date().toISOString() })
@@ -66,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   await supabase.from('dm_participants').insert([
     { conversation_id: conv.id, nickname: my_nickname, fingerprint: my_fingerprint },
-    { conversation_id: conv.id, nickname: target_nickname, fingerprint: target_fp },
+    { conversation_id: conv.id, nickname: target_nickname, fingerprint: 'pending_' + target_nickname },
   ])
 
   return NextResponse.json({ conversation_id: conv.id }, { status: 201 })
