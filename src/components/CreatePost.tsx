@@ -47,8 +47,10 @@ export default function CreatePost({ onPosted }: Props) {
       maxWidthOrHeight: 1200,
       useWebWorker: true,
     })
-    setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(compressed) })
-    setImage(compressed)
+    // web worker transfer strips File.name — re-wrap with original filename
+    const named = new File([compressed], file.name, { type: compressed.type })
+    setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(named) })
+    setImage(named)
   }
 
   function removeImage() {

@@ -7,6 +7,10 @@ function db() {
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'])
 const ALLOWED_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'])
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg', 'image/png': 'png',
+  'image/gif': 'gif', 'image/webp': 'webp', 'image/avif': 'avif',
+}
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 
 export async function POST(req: NextRequest) {
@@ -23,8 +27,11 @@ export async function POST(req: NextRequest) {
   if (!ALLOWED_TYPES.has(file.type)) {
     return NextResponse.json({ error: 'invalid file type' }, { status: 400 })
   }
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
-  if (!ALLOWED_EXTS.has(ext)) {
+  // fall back to MIME-derived extension when filename has no valid ext
+  // (happens when web worker compression strips File.name, or HEIC→JPEG conversion)
+  const nameExt = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const ext = ALLOWED_EXTS.has(nameExt) ? nameExt : (MIME_TO_EXT[file.type] ?? '')
+  if (!ext) {
     return NextResponse.json({ error: 'invalid file extension' }, { status: 400 })
   }
 
