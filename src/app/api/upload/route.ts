@@ -39,17 +39,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'file too large (max 5 MB)' }, { status: 400 })
   }
 
-  // verify fingerprint has a valid claimed nickname this week
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: claim } = await db()
-    .from('nickname_claims')
-    .select('nickname')
+  // reject blocked fingerprints
+  const { data: blocked } = await db()
+    .from('blocked_fingerprints')
+    .select('id')
     .eq('fingerprint', fingerprint)
-    .gte('claimed_at', weekAgo)
     .maybeSingle()
 
-  if (!claim) {
-    return NextResponse.json({ error: 'no active nickname for this session' }, { status: 403 })
+  if (blocked) {
+    return NextResponse.json({ error: 'blocked' }, { status: 403 })
   }
 
   const safeExt = ext  // already validated above

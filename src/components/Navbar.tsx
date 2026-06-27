@@ -63,8 +63,9 @@ export default function Navbar() {
       className="sticky top-0 z-40 flex items-center justify-between px-3 sm:px-4 py-3 border-b"
       style={{ background: 'rgba(7,7,15,0.85)', backdropFilter: 'blur(12px)', borderColor: 'var(--border)' }}
     >
-      <Link href="/" className="flex items-center gap-1.5 font-semibold text-sm shrink-0" style={{ color: 'var(--text)' }}>
-        <span style={{ color: 'var(--accent)' }}>✦</span> pixelin.space
+      <Link href="/" className="flex items-center shrink-0" aria-label="pixelin.space">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="pixelin.space" height="28" style={{ height: 28, width: 'auto' }} />
       </Link>
 
       <div className="flex items-center gap-0.5 sm:gap-1 min-w-0">

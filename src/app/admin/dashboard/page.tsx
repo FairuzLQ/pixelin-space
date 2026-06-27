@@ -138,25 +138,19 @@ export default function AdminDashboard() {
     setBlocked(prev => prev.filter(b => b.fingerprint !== fingerprint))
   }
 
-  async function resetSessions() {
-    if (!confirm('Force reset semua user sessions? Semua user akan diminta pilih username baru saat next visit.')) return
-    const res = await fetch('/api/admin/reset-sessions', { method: 'POST' })
-    if (res.ok) alert('✓ Session reset berhasil. Semua user akan logout saat next visit.')
-    else alert('Gagal reset sessions.')
-  }
-
-  async function purgeAll() {
-    if (!confirm('⚠️ PURGE ALL: hapus SEMUA data (posts, comments, DMs, reactions, blocked). Tidak bisa di-undo!')) return
-    if (!confirm('Beneran yakin? Ini hapus semuanya sekaligus!')) return
-    const res = await fetch('/api/admin/purge', { method: 'DELETE' })
+  async function nukeAll() {
+    if (!confirm('☢ NUKE ALL: hapus SEMUA data (posts, comments, DMs, reactions, blocked, nickname claims) + force reset semua sessions. Tidak bisa di-undo!')) return
+    if (!confirm('Beneran yakin? Ini bersihkan semuanya sampai ke database!')) return
+    const res = await fetch('/api/admin/nuke', { method: 'DELETE' })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      alert(`Purge gagal (${res.status}): ${body.error ?? JSON.stringify(body.errors)}`)
+      alert(`Nuke gagal (${res.status}): ${body.error ?? JSON.stringify(body.errors)}`)
       return
     }
     setPosts([])
     setComments([])
     setBlocked([])
+    alert('✓ Semua data dihapus dan sessions di-reset.')
   }
 
   async function logout() {
@@ -188,18 +182,11 @@ export default function AdminDashboard() {
         {/* bottom row: action buttons */}
         <div className="flex items-center gap-2 px-4 pb-2.5">
           <button
-            className="text-xs px-3 py-1.5 rounded-lg"
-            style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}
-            onClick={resetSessions}
-          >
-            ↺ reset sessions
-          </button>
-          <button
             className="text-xs px-3 py-1.5 rounded-lg font-semibold"
             style={{ background: 'rgba(239,68,68,0.25)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)' }}
-            onClick={purgeAll}
+            onClick={nukeAll}
           >
-            ☢ purge all
+            ☢ nuke all
           </button>
         </div>
       </nav>

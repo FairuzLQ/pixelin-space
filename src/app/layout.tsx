@@ -4,6 +4,10 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'pixelin.space',
   description: 'a small space for you and your people',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+  },
   openGraph: {
     title: 'pixelin.space',
     description: 'a small space for you and your people',
