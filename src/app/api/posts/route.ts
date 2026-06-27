@@ -37,9 +37,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const res = NextResponse.json({ posts: data })
-  res.headers.set('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=60')
-  return res
+  return NextResponse.json({ posts: data })
 }
 
 export async function POST(req: NextRequest) {
