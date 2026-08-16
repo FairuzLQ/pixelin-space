@@ -92,19 +92,26 @@ export default function CreatePost({ onPosted }: Props) {
       }),
     })
 
+    const data = await res.json().catch(() => ({}))
+
     if (res.status === 429) {
-      setError('kamu udah post 3x minggu ini. tunggu reset minggu depan ✦')
-      setPostCount(3)
+      if (data.error === 'post_limit_reached') {
+        setError('that\'s 3 posts this week — resets next week ✷')
+        setPostCount(3)
+      } else {
+        setError('slow down a sec ✷')
+      }
       setUploading(false)
       return
     }
     if (res.status === 403) {
-      setError('akun kamu diblokir oleh admin.')
+      setError(data.error === 'identity_mismatch'
+        ? 'session expired — refresh the page'
+        : 'your account is blocked by admin.')
       setUploading(false)
       return
     }
 
-    const data = await res.json()
     if (data.post) {
       onPosted(data.post)
       setContent('')
@@ -121,21 +128,22 @@ export default function CreatePost({ onPosted }: Props) {
 
   return (
     <div className="card p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         {daysLeft !== null && daysLeft <= 2 && (
-          <p className="text-xs px-2 py-1 rounded-lg" style={{ background: 'rgba(124,106,247,0.1)', color: 'var(--accent2)' }}>
-            username expire {daysLeft === 0 ? 'hari ini' : `${daysLeft}h lagi`}
+          <p className="text-xs px-2 py-1 rounded-lg font-bold" style={{ background: 'var(--lime)', color: 'var(--ink)', border: '2px solid var(--ink)' }}>
+            name expires {daysLeft === 0 ? 'today' : `in ${daysLeft}d`}
           </p>
         )}
         {postCount !== null && (
           <span
-            className="text-xs px-2 py-1 rounded-lg ml-auto"
+            className="mono text-xs px-2 py-1 rounded-lg ml-auto font-bold"
             style={{
-              background: postLimitReached ? 'rgba(239,68,68,0.1)' : 'var(--bg3)',
-              color: postLimitReached ? '#f87171' : 'var(--text2)',
+              background: postLimitReached ? 'var(--accent)' : 'var(--bg3)',
+              color: 'var(--ink)',
+              border: '2px solid var(--ink)',
             }}
           >
-            {postCount}/3 post minggu ini
+            {postCount}/3 this week
           </span>
         )}
       </div>
@@ -143,23 +151,25 @@ export default function CreatePost({ onPosted }: Props) {
       <textarea
         className="w-full px-3 py-2 text-sm resize-none"
         rows={expanded ? 4 : 2}
-        placeholder={postLimitReached ? 'limit tercapai. tunggu reset minggu depan ✦' : 'what\'s floating in your mind...'}
+        placeholder={postLimitReached ? 'weekly limit reached — resets next week ✷' : 'what\'s floating in your mind… #usehashtags'}
         value={content}
         onChange={e => setContent(e.target.value)}
         onFocus={() => { if (!postLimitReached) setExpanded(true) }}
         maxLength={MAX_CHARS}
         disabled={postLimitReached}
         style={{ opacity: postLimitReached ? 0.5 : 1 }}
+        aria-label="write a post"
       />
 
       {preview && (
         <div className="relative w-full">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="preview" className="w-full rounded-lg object-cover max-h-56" />
+          <img src={preview} alt="preview" className="w-full rounded-lg object-cover max-h-56" style={{ border: '2.5px solid var(--ink)' }} />
           <button
             onClick={removeImage}
-            className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs"
-            style={{ background: 'rgba(0,0,0,0.6)', color: 'white' }}
+            className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold"
+            style={{ background: 'var(--accent)', color: 'var(--ink)', border: '2.5px solid var(--ink)' }}
+            aria-label="remove image"
           >
             ×
           </button>
@@ -167,7 +177,7 @@ export default function CreatePost({ onPosted }: Props) {
       )}
 
       {error && (
-        <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>
+        <p className="text-xs font-bold" style={{ color: 'var(--accent)' }}>{error}</p>
       )}
 
       {expanded && !postLimitReached && (
@@ -178,8 +188,8 @@ export default function CreatePost({ onPosted }: Props) {
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickImage} />
 
           {nearLimit && (
-            <span className="text-xs" style={{ color: charsLeft <= 20 ? '#f87171' : 'var(--text2)' }}>
-              {charsLeft} chars left
+            <span className="text-xs mono" style={{ color: charsLeft <= 20 ? 'var(--accent)' : 'var(--text2)' }}>
+              {charsLeft}
             </span>
           )}
 
@@ -195,7 +205,7 @@ export default function CreatePost({ onPosted }: Props) {
               onClick={submit}
               disabled={uploading || (!content.trim() && !image)}
             >
-              {uploading ? 'posting...' : 'post ✦'}
+              {uploading ? 'posting…' : 'post ✷'}
             </button>
           </div>
         </div>

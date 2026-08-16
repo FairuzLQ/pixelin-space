@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { Comment } from '@/types/database'
 import { getNickname, getFingerprint } from '@/lib/fingerprint'
+import { RichText } from '@/lib/richText'
 
 const OWN_COMMENTS_KEY = 'ps_comment_ids'
 
@@ -89,7 +90,9 @@ export default function CommentSection({
     const data = await res.json()
 
     if (res.status === 403) {
-      setError('akun kamu diblokir oleh admin.')
+      setError(data.error === 'identity_mismatch' ? 'session expired — refresh the page' : 'your account is blocked by admin.')
+    } else if (res.status === 429) {
+      setError('slow down a sec ✷')
     } else if (data.comment) {
       setComments(c => [...c, data.comment])
       addOwnCommentId(data.comment.id)
@@ -123,58 +126,63 @@ export default function CommentSection({
   const nearLimit = charsLeft <= 50
 
   return (
-    <div className="flex flex-col gap-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+    <div className="flex flex-col gap-2.5 pt-3" style={{ borderTop: '2.5px solid var(--ink)' }}>
       {loading ? (
-        <p className="text-xs" style={{ color: 'var(--text2)' }}>loading...</p>
+        <p className="text-xs mono" style={{ color: 'var(--text2)' }}>loading…</p>
       ) : (
-        <div className="flex flex-col gap-2 max-h-56 overflow-y-auto">
+        <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
           {comments.map(c => (
-            <div key={c.id} className="flex gap-2 items-start group">
+            <div key={c.id} className="flex gap-2 items-start">
               <div
-                className="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5"
-                style={{ background: 'var(--bg3)', color: 'var(--accent2)' }}
+                className="w-6 h-6 rounded-md flex items-center justify-center text-xs shrink-0 mt-0.5 font-bold"
+                style={{ background: 'var(--bg3)', color: 'var(--ink)', border: '2px solid var(--ink)' }}
+                aria-hidden
               >
                 {c.nickname.slice(0, 1).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium" style={{ color: 'var(--text)' }}>{c.nickname}</span>
-                  <span className="text-xs" style={{ color: 'var(--text2)' }}>{timeAgo(c.created_at)}</span>
+                  <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>{c.nickname}</span>
+                  <span className="text-xs mono" style={{ color: 'var(--text2)' }}>{timeAgo(c.created_at)}</span>
                   {ownIds.has(c.id) && (
                     <button
                       onClick={() => deleteComment(c.id)}
                       disabled={deletingId === c.id}
-                      className="text-xs w-5 h-5 flex items-center justify-center rounded ml-auto shrink-0"
-                      style={{ color: '#f87171', background: 'rgba(239,68,68,0.15)' }}
+                      className="text-xs w-5 h-5 flex items-center justify-center rounded ml-auto shrink-0 font-bold"
+                      style={{ color: 'var(--ink)', background: 'var(--accent)', border: '2px solid var(--ink)' }}
+                      aria-label="delete comment"
                     >
                       {deletingId === c.id ? '·' : '×'}
                     </button>
                   )}
                 </div>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text)', wordBreak: 'break-word' }}>{c.content}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--ink)', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                  <RichText text={c.content} />
+                </p>
               </div>
             </div>
           ))}
           {comments.length === 0 && (
-            <p className="text-xs" style={{ color: 'var(--text2)' }}>no replies yet. be first 👀</p>
+            <p className="text-xs mono" style={{ color: 'var(--text2)' }}>no replies yet — be first 👀</p>
           )}
         </div>
       )}
 
-      {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+      {error && <p className="text-xs font-bold" style={{ color: 'var(--accent)' }}>{error}</p>}
 
       <div className="flex gap-2 items-end">
         <div className="flex-1 flex flex-col gap-0.5">
           <input
             className="w-full px-3 py-2 text-xs"
-            placeholder="write a reply..."
+            placeholder="write a reply…"
             value={input}
             onChange={e => { setInput(e.target.value); setError(null) }}
             onKeyDown={e => e.key === 'Enter' && submit()}
             maxLength={MAX}
+            aria-label="write a reply"
           />
           {nearLimit && input.length > 0 && (
-            <span className="text-xs text-right pr-1" style={{ color: charsLeft <= 10 ? '#f87171' : 'var(--text2)' }}>
+            <span className="text-xs text-right pr-1 mono" style={{ color: charsLeft <= 10 ? 'var(--accent)' : 'var(--text2)' }}>
               {charsLeft}
             </span>
           )}
@@ -184,7 +192,7 @@ export default function CommentSection({
           onClick={submit}
           disabled={submitting || !input.trim()}
         >
-          {submitting ? '...' : 'send'}
+          {submitting ? '…' : 'send'}
         </button>
       </div>
     </div>

@@ -20,6 +20,7 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const lastMsgCreatedAt = useRef<string | null>(null)
@@ -32,7 +33,7 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   const router = useRouter()
 
   const myNickname = getNickname()
-  myNicknameRef.current = myNickname
+  useEffect(() => { myNicknameRef.current = myNickname }, [myNickname])
 
   // mark DMs as seen and keep refreshing the timestamp while on this page
   useEffect(() => {
@@ -151,6 +152,7 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   async function send() {
     if (!input.trim() || !myNickname || sending) return
     setSending(true)
+    setSendError(null)
     const content = input.trim()
     setInput('') // optimistically clear input
     try {
@@ -163,7 +165,7 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
           sender_fingerprint: getFingerprint(),
         }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (data.message) {
         addMessage(data.message) // add for sender immediately
         // broadcast to other participants via the already-open WebSocket (self: false by default)
@@ -174,9 +176,13 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
         }).catch(() => {})
       } else if (!res.ok) {
         setInput(content) // restore on error
+        setSendError(res.status === 429 ? 'slow down a sec ✷'
+          : data.error === 'identity_mismatch' ? 'session expired — refresh'
+          : 'couldn\'t send, try again')
       }
     } catch {
       setInput(content) // restore on network error
+      setSendError('network error — try again')
     } finally {
       setSending(false)
     }
@@ -201,13 +207,14 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
             ← back
           </button>
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-            style={{ background: 'var(--bg3)', color: 'var(--accent2)' }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 mono"
+            style={{ background: 'var(--lime)', color: 'var(--ink)', border: '2.5px solid var(--ink)' }}
+            aria-hidden
           >
             {title.slice(0, 2).toUpperCase()}
           </div>
-          <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{title}</span>
-          <span className="text-xs ml-auto shrink-0" style={{ color: 'var(--text2)' }}>
+          <span className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{title}</span>
+          <span className="text-xs ml-auto shrink-0 mono" style={{ color: 'var(--text2)' }}>
             {participants.length}/3
           </span>
         </div>
@@ -239,9 +246,11 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
                     className="px-3 py-2 text-sm"
                     style={{
                       background: isMe ? 'var(--accent)' : 'var(--bg2)',
-                      color: isMe ? 'white' : 'var(--text)',
-                      border: isMe ? 'none' : '1px solid var(--border)',
-                      borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                      color: 'var(--ink)',
+                      border: '2.5px solid var(--ink)',
+                      boxShadow: 'var(--shadow-sm)',
+                      borderRadius: isMe ? '16px 16px 3px 16px' : '16px 16px 16px 3px',
+                      wordBreak: 'break-word',
                     }}
                   >
                     {msg.content}
@@ -256,21 +265,26 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
           <div ref={bottomRef} />
         </div>
 
-        <div className="flex gap-2 pt-2 border-t shrink-0" style={{ borderColor: 'var(--border)' }}>
+        {sendError && (
+          <p className="text-xs font-bold px-1 pt-1 shrink-0" style={{ color: 'var(--accent)' }}>{sendError}</p>
+        )}
+        <div className="flex gap-2 pt-2 shrink-0" style={{ borderTop: '2.5px solid var(--ink)' }}>
           <input
             className="flex-1 px-4 py-3 text-sm"
             style={{ borderRadius: '24px' }}
-            placeholder="type something..."
+            placeholder="type something…"
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => { setInput(e.target.value); setSendError(null) }}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-            maxLength={500}
+            maxLength={1000}
+            aria-label="message"
           />
           <button
-            className="btn-primary px-4 py-2 text-sm"
+            className="btn-primary px-5 py-2 text-base"
             style={{ borderRadius: '24px' }}
             onClick={send}
             disabled={sending || !input.trim()}
+            aria-label="send message"
           >
             →
           </button>

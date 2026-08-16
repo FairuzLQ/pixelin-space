@@ -164,7 +164,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       <nav
         className="sticky top-0 z-40 border-b"
-        style={{ background: 'rgba(7,7,15,0.9)', backdropFilter: 'blur(12px)', borderColor: 'var(--border)' }}
+        style={{ background: 'var(--bg)', borderColor: 'var(--ink)', borderBottomWidth: '2.5px' }}
       >
         {/* top row: title + logout */}
         <div className="flex items-center justify-between px-4 py-2.5">
@@ -200,7 +200,9 @@ export default function AdminDashboard() {
               className="text-xs px-3 py-2 rounded-lg shrink-0"
               style={{
                 background: tab === t ? 'var(--accent)' : 'var(--bg3)',
-                color: tab === t ? 'white' : 'var(--text2)',
+                color: 'var(--ink)',
+                border: '2px solid var(--ink)',
+                fontWeight: 700,
               }}
             >
               {t === 'posts' ? `posts (${posts.length})` : t === 'comments' ? `comments (${comments.length})` : t === 'blocked' ? `blocked (${blocked.length})` : 'settings'}

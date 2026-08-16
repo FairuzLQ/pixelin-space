@@ -1,31 +1,50 @@
 @import "tailwindcss";
 
+/* ============================================================
+   pixelin.space — neo-brutalist "sticker" design system
+   paper + ink, chunky borders, hard offset shadows, bold accents
+   ============================================================ */
+
 :root {
-  --bg: #07070f;
-  --bg2: #0e0e1a;
-  --bg3: #16162a;
-  --border: #2a2a4a;
-  --text: #e8e8f0;
-  --text2: #8888aa;
-  --accent: #7c6af7;
-  --accent2: #a78bfa;
-  --glow: rgba(124, 106, 247, 0.15);
+  /* surfaces */
+  --paper: #f2ecdd;
+  --bg: #f2ecdd;
+  --bg2: #fffdf6;   /* card surface (brighter so it pops) */
+  --bg3: #e7dec9;   /* chips / inset panels */
+
+  /* ink + text */
+  --ink: #16130d;
+  --text: #16130d;
+  --text2: #6a6252;
+  --border: #16130d;
+
+  /* accents */
+  --accent: #ff5a2c;   /* vermilion */
+  --accent2: #16130d;  /* strong ink accent (links, active) */
+  --lime: #d4f24a;
+  --pink: #ff5c9e;
+  --blue: #2f6bff;
+
+  /* brutalist primitives */
+  --shadow: 4px 4px 0 var(--ink);
+  --shadow-sm: 2px 2px 0 var(--ink);
+  --shadow-lg: 6px 6px 0 var(--ink);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --bw: 2.5px; /* border width */
 }
 
 @theme inline {
-  --color-space-bg: var(--bg);
-  --color-space-bg2: var(--bg2);
-  --color-space-bg3: var(--bg3);
-  --color-space-border: var(--border);
-  --color-space-text: var(--text);
-  --color-space-text2: var(--text2);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
   --color-space-accent: var(--accent);
-  --color-space-accent2: var(--accent2);
+  --color-space-lime: var(--lime);
+  --color-space-pink: var(--pink);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 html {
   background: var(--bg);
@@ -35,124 +54,157 @@ html {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  /* faint dot grid — quiet texture instead of the generic "space" gradient */
+  background-image: radial-gradient(var(--ink) 0.6px, transparent 0.6px);
+  background-size: 22px 22px;
+  background-position: -11px -11px;
+  background-attachment: fixed;
 }
 
-/* Stars background */
+/* the dots are barely there */
+body { background-color: var(--bg); }
 body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background-image:
-    radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 50% 10%, rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 70% 40%, rgba(255,255,255,0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 90% 80%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1px 1px at 20% 90%, rgba(255,255,255,0.2) 0%, transparent 100%),
-    radial-gradient(1px 1px at 80% 15%, rgba(255,255,255,0.3) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 40% 75%, rgba(255,255,255,0.2) 0%, transparent 100%),
-    radial-gradient(1px 1px at 60% 50%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(2px 2px at 15% 45%, rgba(124,106,247,0.3) 0%, transparent 100%),
-    radial-gradient(2px 2px at 75% 65%, rgba(167,139,250,0.2) 0%, transparent 100%);
+  background: var(--bg);
+  opacity: 0.86;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1;
 }
 
-/* Nebula glow */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 20% 50%, rgba(124,106,247,0.05) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 20%, rgba(167,139,250,0.04) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
+main { position: relative; z-index: 1; }
+
+/* ------------------------------------------------------------ typography */
+h1, h2, h3 { font-weight: 700; letter-spacing: -0.02em; }
+
+.display {
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
 }
 
-main {
-  position: relative;
-  z-index: 1;
-}
+.mono { font-family: var(--font-mono), ui-monospace, monospace; }
 
+::selection { background: var(--lime); color: var(--ink); }
+
+/* ------------------------------------------------------------ card */
 .card {
   background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  transition: border-color 0.2s;
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
-.card:hover {
-  border-color: rgba(124, 106, 247, 0.4);
+/* a subtly interactive card (links) */
+.card-tap {
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
+.card-tap:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow-lg); }
+.card-tap:active { transform: translate(2px, 2px); box-shadow: var(--shadow-sm); }
 
+/* ------------------------------------------------------------ buttons */
 .btn-primary {
   background: var(--accent);
-  color: white;
-  border-radius: 8px;
+  color: var(--ink);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 8px 16px;
-  font-weight: 500;
-  transition: opacity 0.15s, transform 0.1s;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
-
-.btn-primary:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
+.btn-primary:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: var(--shadow); }
+.btn-primary:active:not(:disabled) { transform: translate(1px, 1px); box-shadow: 0 0 0 var(--ink); }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
 .btn-ghost {
   background: transparent;
-  color: var(--text2);
-  border-radius: 8px;
-  padding: 8px 16px;
-  transition: background 0.15s, color 0.15s;
-}
-
-.btn-ghost:hover {
-  background: var(--bg3);
   color: var(--text);
+  border: var(--bw) solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-weight: 600;
+  transition: background 0.12s, border-color 0.12s;
 }
+.btn-ghost:hover { background: var(--bg3); border-color: var(--border); }
 
+/* sticker chip — reactions, tags, meta pills */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg2);
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-weight: 600;
+  line-height: 1;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.12s;
+}
+.chip-tap:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow-sm); }
+.chip-tap:active { transform: translate(1px, 1px); box-shadow: none; }
+.chip-on { background: var(--lime); }
+
+/* ------------------------------------------------------------ inputs */
 input, textarea {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--bg2);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius-sm);
   color: var(--text);
   outline: none;
-  transition: border-color 0.2s;
+  transition: box-shadow 0.1s ease;
 }
-
 input:focus, textarea:focus {
-  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+input::placeholder, textarea::placeholder { color: var(--text2); }
+
+/* clickable content links inside posts/comments */
+.linkified { color: var(--blue); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.hashtag { color: var(--ink); font-weight: 700; background: var(--lime); padding: 0 3px; border-radius: 4px; }
+
+/* focus visibility for keyboard users */
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
 }
 
-input::placeholder, textarea::placeholder {
-  color: var(--text2);
-}
-
-::-webkit-scrollbar {
-  width: 4px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg);
-}
+/* ------------------------------------------------------------ scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg3); }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 2px;
+  background: var(--ink);
+  border: 2px solid var(--bg3);
+  border-radius: 0;
 }
 
-/* Mobile: prevent iOS zoom on input focus */
+/* ------------------------------------------------------------ animation */
+@keyframes ps-pop {
+  0% { transform: scale(0.9); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.animate-pop { animation: ps-pop 0.18s ease-out; }
+
+@keyframes ps-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.animate-pulse { animation: ps-pulse 1.2s ease-in-out infinite; }
+
+/* ------------------------------------------------------------ mobile */
 @media (max-width: 768px) {
-  input, textarea, select {
-    font-size: 16px !important;
-  }
+  input, textarea, select { font-size: 16px !important; } /* no iOS zoom */
+}
+@media (max-width: 640px) {
+  .btn-primary, .btn-ghost { min-height: 42px; }
+  :root { --shadow: 3px 3px 0 var(--ink); --shadow-lg: 4px 4px 0 var(--ink); }
 }
 
-/* Mobile: better touch targets */
-@media (max-width: 640px) {
-  .btn-primary, .btn-ghost {
-    min-height: 40px;
-  }
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }

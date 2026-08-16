@@ -37,7 +37,11 @@ export default function NicknameGate({ children }: { children: React.ReactNode }
 
   async function save() {
     const trimmed = input.trim()
-    if (!trimmed || trimmed.length < 2 || checking) return
+    if (!trimmed || checking) return
+    if (!/^[A-Za-z0-9_.]{2,20}$/.test(trimmed)) {
+      setError('2–20 chars, only letters, numbers, _ and .')
+      return
+    }
 
     setChecking(true)
     setError(null)
@@ -50,13 +54,17 @@ export default function NicknameGate({ children }: { children: React.ReactNode }
     })
 
     if (res.status === 409) {
-      setError('username ini sudah dipakai orang lain minggu ini, coba yang lain')
+      setError('taken this week — try another one')
       setChecking(false)
       return
     }
-
+    if (res.status === 429) {
+      setError('too many tries, slow down a sec')
+      setChecking(false)
+      return
+    }
     if (!res.ok) {
-      setError('gagal cek username, coba lagi')
+      setError('that nickname isn\'t allowed, try another')
       setChecking(false)
       return
     }
@@ -70,24 +78,36 @@ export default function NicknameGate({ children }: { children: React.ReactNode }
 
   if (!nickname) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(7,7,15,0.97)' }}>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'var(--bg)', backgroundImage: 'radial-gradient(var(--ink) 0.6px, transparent 0.6px)', backgroundSize: '22px 22px' }}
+      >
         <div className="card p-6 sm:p-8 w-full max-w-sm flex flex-col gap-5">
           <div className="text-center">
-            <div className="text-3xl mb-2">✦</div>
-            <h1 className="text-xl font-semibold" style={{ color: 'var(--text)' }}>welcome to pixelin.space</h1>
-            <p className="text-sm mt-1" style={{ color: 'var(--text2)' }}>
-              pick a nickname to enter. no account needed.
+            <div
+              className="inline-flex items-center justify-center w-12 h-12 rounded-xl text-2xl mb-3"
+              style={{ background: 'var(--accent)', border: '2.5px solid var(--ink)', boxShadow: 'var(--shadow-sm)' }}
+              aria-hidden
+            >
+              ✷
+            </div>
+            <h1 className="display text-2xl" style={{ color: 'var(--ink)' }}>pixelin.space</h1>
+            <p className="text-sm mt-2" style={{ color: 'var(--text2)' }}>
+              pick a nickname to enter. no account, no email, no fuss.
             </p>
-            <p className="text-xs mt-2 px-2 py-1.5 rounded-lg" style={{ background: 'rgba(124,106,247,0.1)', color: 'var(--accent2)' }}>
-              username & posts reset every week ✦
+            <p
+              className="text-xs mt-3 px-2 py-1.5 rounded-lg inline-block font-bold"
+              style={{ background: 'var(--lime)', color: 'var(--ink)', border: '2px solid var(--ink)' }}
+            >
+              ✷ everything resets every week
             </p>
           </div>
 
           <div className="flex flex-col gap-2">
             <input
-              className="w-full px-4 py-3"
-              placeholder="your nickname..."
-              maxLength={24}
+              className="w-full px-4 py-3 mono"
+              placeholder="your_nickname"
+              maxLength={20}
               value={input}
               onChange={e => { setInput(e.target.value); setError(null) }}
               onKeyDown={e => e.key === 'Enter' && save()}
@@ -95,10 +115,11 @@ export default function NicknameGate({ children }: { children: React.ReactNode }
               autoCapitalize="off"
               autoCorrect="off"
               spellCheck={false}
+              aria-label="nickname"
             />
-            {error && (
-              <p className="text-xs px-1" style={{ color: '#f87171' }}>{error}</p>
-            )}
+            <p className="text-xs px-1" style={{ color: error ? 'var(--accent)' : 'var(--text2)' }}>
+              {error ?? '2–20 chars · letters, numbers, _ and . only'}
+            </p>
           </div>
 
           <button
@@ -106,11 +127,11 @@ export default function NicknameGate({ children }: { children: React.ReactNode }
             onClick={save}
             disabled={input.trim().length < 2 || checking}
           >
-            {checking ? 'checking...' : 'enter the space →'}
+            {checking ? 'checking...' : 'enter →'}
           </button>
 
           <p className="text-xs text-center" style={{ color: 'var(--text2)' }}>
-            username hanya berlaku 7 hari, lalu bisa dipakai siapa saja
+            a nickname is yours for 7 days, then it&apos;s up for grabs again.
           </p>
         </div>
       </div>

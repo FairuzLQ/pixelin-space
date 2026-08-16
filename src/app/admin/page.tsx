@@ -33,9 +33,13 @@ export default function AdminLogin() {
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--bg)' }}>
       <div className="card p-8 w-full max-w-sm flex flex-col gap-5">
         <div className="text-center">
-          <div className="text-2xl mb-2">⚙</div>
-          <h1 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>admin panel</h1>
-          <p className="text-xs mt-1" style={{ color: 'var(--text2)' }}>pixelin.space</p>
+          <div
+            className="inline-flex items-center justify-center w-11 h-11 rounded-xl text-xl mb-2"
+            style={{ background: 'var(--lime)', border: '2.5px solid var(--ink)', boxShadow: 'var(--shadow-sm)' }}
+            aria-hidden
+          >⚙</div>
+          <h1 className="display text-xl" style={{ color: 'var(--ink)' }}>admin panel</h1>
+          <p className="text-xs mt-1 mono" style={{ color: 'var(--text2)' }}>pixelin.space</p>
         </div>
 
         <form onSubmit={login} className="flex flex-col gap-3">

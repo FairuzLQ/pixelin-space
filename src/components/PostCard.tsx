@@ -5,23 +5,40 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import type { Post } from '@/types/database'
 import { getFingerprint, getNickname } from '@/lib/fingerprint'
+import { RichText } from '@/lib/richText'
+import { isSaved, toggleSaved } from '@/lib/bookmarks'
 import CommentSection from './CommentSection'
 
 const REACTIONS = [
   { type: 'fire', emoji: '🔥' },
   { type: 'laugh', emoji: '😭' },
   { type: 'love', emoji: '🫀' },
-  { type: 'star', emoji: '✦' },
+  { type: 'star', emoji: '✷' },
 ]
+
+const AVATAR_COLORS = ['var(--accent)', 'var(--lime)', 'var(--pink)', 'var(--blue)']
+const EDIT_WINDOW_MS = 15 * 60 * 1000
+const MAX_CHARS = 1000
+
+function avatarColor(nickname: string) {
+  let h = 0
+  for (let i = 0; i < nickname.length; i++) h = (h * 31 + nickname.charCodeAt(i)) | 0
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]
+}
+
+// kept at module scope so the time read isn't a purity violation in render
+function withinEditWindow(createdAt: string) {
+  return Date.now() - new Date(createdAt).getTime() < EDIT_WINDOW_MS
+}
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const m = Math.floor(diff / 60000)
-  if (m < 1) return 'just now'
-  if (m < 60) return `${m}m ago`
+  if (m < 1) return 'now'
+  if (m < 60) return `${m}m`
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
+  if (h < 24) return `${h}h`
+  return `${Math.floor(h / 24)}d`
 }
 
 function storeMine(postId: string, mine: Set<string>) {
@@ -37,21 +54,34 @@ interface Props {
   post: Post
   initialReactions?: { counts: Record<string, number>; mine: string[] }
   onDeleted?: (id: string) => void
+  onEdited?: (post: Post) => void
+  defaultOpenComments?: boolean
 }
 
-export default function PostCard({ post, initialReactions, onDeleted }: Props) {
+export default function PostCard({ post, initialReactions, onDeleted, onEdited, defaultOpenComments }: Props) {
   const [counts, setCounts] = useState<Record<string, number>>(initialReactions?.counts ?? {})
   const [mine, setMine] = useState<Set<string>>(new Set(initialReactions?.mine ?? []))
-  const [reacting, setReacting] = useState(false)
-  const [showComments, setShowComments] = useState(false)
+  const [showComments, setShowComments] = useState(!!defaultOpenComments)
   const [commentCount, setCommentCount] = useState(post.comment_count)
   const [imgExpanded, setImgExpanded] = useState(false)
   const [dmLoading, setDmLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [popKey, setPopKey] = useState<string | null>(null)
+
+  // edit state
+  const [content, setContent] = useState(post.content ?? '')
+  const [editedAt, setEditedAt] = useState(post.edited_at)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(post.content ?? '')
+  const [savingEdit, setSavingEdit] = useState(false)
+
   const reactingRef = useRef(false)
   const router = useRouter()
 
-  // only fetch individually if not pre-loaded from feed
+  useEffect(() => { setSaved(isSaved(post.id)) }, [post.id])
+
   useEffect(() => {
     if (initialReactions) return
     fetch(`/api/reactions?post_id=${post.id}&fingerprint=${getFingerprint()}`)
@@ -64,7 +94,6 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
       })
   }, [post.id, initialReactions])
 
-  // sync when initialReactions updates (e.g. after bulk fetch)
   useEffect(() => {
     if (!initialReactions) return
     setCounts(initialReactions.counts)
@@ -76,11 +105,12 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
   const react = useCallback(async (type: string) => {
     if (reactingRef.current) return
     reactingRef.current = true
-    setReacting(true)
     const wasActive = mine.has(type)
+    setPopKey(type)
+    setTimeout(() => setPopKey(null), 200)
 
     const newMine = new Set(mine)
-    wasActive ? newMine.delete(type) : newMine.add(type)
+    if (wasActive) newMine.delete(type); else newMine.add(type)
     setMine(newMine)
     storeMine(post.id, newMine)
     setCounts(prev => ({
@@ -94,7 +124,6 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
       body: JSON.stringify({ post_id: post.id, type, fingerprint: getFingerprint() }),
     })
     reactingRef.current = false
-    setReacting(false)
   }, [mine, post.id])
 
   async function openDm() {
@@ -112,82 +141,150 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
   }
 
   async function deletePost() {
-    if (!confirm('Hapus post kamu?')) return
+    if (!confirm('Delete your post?')) return
     setDeleting(true)
     const res = await fetch(`/api/posts/${post.id}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fingerprint: getFingerprint() }),
     })
+    if (res.ok) onDeleted?.(post.id)
+    else setDeleting(false)
+  }
+
+  async function saveEdit() {
+    const next = draft.trim()
+    if (!next || savingEdit) return
+    setSavingEdit(true)
+    const res = await fetch(`/api/posts/${post.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: next, fingerprint: getFingerprint() }),
+    })
     if (res.ok) {
-      onDeleted?.(post.id)
-    } else {
-      setDeleting(false)
+      const data = await res.json()
+      setContent(next)
+      setEditedAt(data.post?.edited_at ?? new Date().toISOString())
+      setEditing(false)
+      onEdited?.({ ...post, content: next, edited_at: data.post?.edited_at ?? null })
     }
+    setSavingEdit(false)
+  }
+
+  async function share() {
+    const url = `${window.location.origin}/p/${post.id}`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'pixelin.space', url })
+      } else {
+        await navigator.clipboard.writeText(url)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      }
+    } catch { /* user cancelled */ }
+  }
+
+  function toggleSave() {
+    setSaved(toggleSaved(post.id))
   }
 
   const myNickname = getNickname()
   const isMe = myNickname === post.nickname
+  const canEdit = isMe && withinEditWindow(post.created_at)
 
   return (
     <article className="card p-4 flex flex-col gap-3">
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2.5">
         <div
-          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5"
-          style={{ background: 'var(--bg3)', color: 'var(--accent2)' }}
+          className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 mono"
+          style={{ background: avatarColor(post.nickname), color: 'var(--ink)', border: '2.5px solid var(--ink)' }}
+          aria-hidden
         >
           {post.nickname.slice(0, 2).toUpperCase()}
         </div>
         <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
-          <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+          <span className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>
             {post.nickname}
           </span>
-          <span className="text-xs shrink-0" style={{ color: 'var(--text2)' }}>
-            {timeAgo(post.created_at)}
+          <span className="mono text-xs shrink-0" style={{ color: 'var(--text2)' }}>
+            {timeAgo(post.created_at)}{editedAt ? ' · edited' : ''}
           </span>
-          {!isMe && (
-            <button
-              onClick={openDm}
-              disabled={dmLoading}
-              className="shrink-0 text-xs px-2 py-0.5 rounded-md"
-              style={{ background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)', opacity: dmLoading ? 0.5 : 1 }}
-            >
-              {dmLoading ? '...' : '✉ dm'}
-            </button>
-          )}
-          {isMe && (
-            <button
-              onClick={deletePost}
-              disabled={deleting}
-              className="shrink-0 text-xs px-2 py-0.5 rounded-md ml-auto"
-              style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', opacity: deleting ? 0.5 : 1 }}
-            >
-              {deleting ? '...' : 'hapus'}
-            </button>
-          )}
+          <div className="flex items-center gap-1.5 ml-auto shrink-0">
+            {!isMe && (
+              <button
+                onClick={openDm}
+                disabled={dmLoading}
+                className="chip chip-tap text-xs"
+                style={{ background: 'var(--bg2)' }}
+                aria-label={`message ${post.nickname}`}
+              >
+                {dmLoading ? '…' : '✉ dm'}
+              </button>
+            )}
+            {canEdit && !editing && (
+              <button onClick={() => { setDraft(content); setEditing(true) }} className="chip chip-tap text-xs" aria-label="edit post">
+                edit
+              </button>
+            )}
+            {isMe && (
+              <button
+                onClick={deletePost}
+                disabled={deleting}
+                className="chip chip-tap text-xs"
+                style={{ background: 'var(--accent)' }}
+                aria-label="delete post"
+              >
+                {deleting ? '…' : 'del'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {post.content && (
-        <p className="text-sm leading-relaxed" style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
-          {post.content}
-        </p>
+      {editing ? (
+        <div className="flex flex-col gap-2">
+          <textarea
+            className="w-full px-3 py-2 text-sm resize-none"
+            rows={3}
+            value={draft}
+            maxLength={MAX_CHARS}
+            onChange={e => setDraft(e.target.value)}
+            aria-label="edit content"
+          />
+          <div className="flex gap-2 justify-end">
+            <button className="btn-ghost text-xs" onClick={() => setEditing(false)}>cancel</button>
+            <button className="btn-primary text-xs" onClick={saveEdit} disabled={savingEdit || !draft.trim()}>
+              {savingEdit ? 'saving…' : 'save'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        content && (
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--ink)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <RichText text={content} />
+          </p>
+        )
       )}
 
       {post.image_url && (
-        <div className="rounded-lg overflow-hidden cursor-pointer" onClick={() => setImgExpanded(e => !e)}>
+        <button
+          className="rounded-lg overflow-hidden cursor-pointer text-left"
+          style={{ border: '2.5px solid var(--ink)' }}
+          onClick={() => setImgExpanded(e => !e)}
+          aria-label="toggle image size"
+        >
           <Image
             src={post.image_url}
-            alt="post image"
+            alt="post attachment"
             width={600}
             height={400}
-            className="w-full rounded-lg"
-            style={{ maxHeight: imgExpanded ? 'none' : '300px', objectFit: 'cover' }}
+            className="w-full"
+            style={{ maxHeight: imgExpanded ? 'none' : '320px', objectFit: 'cover', display: 'block' }}
           />
-        </div>
+        </button>
       )}
 
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1.5 flex-wrap">
         {REACTIONS.map(r => {
           const count = counts[r.type] ?? 0
           const active = mine.has(r.type)
@@ -195,26 +292,31 @@ export default function PostCard({ post, initialReactions, onDeleted }: Props) {
             <button
               key={r.type}
               onClick={() => react(r.type)}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all"
-              style={{
-                background: active ? 'rgba(124,106,247,0.2)' : 'var(--bg3)',
-                color: active ? 'var(--accent2)' : 'var(--text)',
-                border: active ? '1px solid rgba(124,106,247,0.4)' : '1px solid transparent',
-              }}
+              className={`chip chip-tap text-xs ${active ? 'chip-on' : ''}`}
+              aria-pressed={active}
+              aria-label={r.type}
             >
-              <span>{r.emoji}</span>
-              {count > 0 && <span>{count}</span>}
+              <span className={popKey === r.type ? 'animate-pop inline-block' : 'inline-block'}>{r.emoji}</span>
+              {count > 0 && <span className="mono">{count}</span>}
             </button>
           )
         })}
 
-        <button
-          onClick={() => setShowComments(v => !v)}
-          className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs ml-auto btn-ghost"
-        >
-          <span>💬</span>
-          <span>{commentCount > 0 ? commentCount : 'reply'}</span>
-        </button>
+        <div className="flex items-center gap-1.5 ml-auto">
+          <button onClick={toggleSave} className={`chip chip-tap text-xs ${saved ? 'chip-on' : ''}`} aria-pressed={saved} aria-label="save post">
+            {saved ? '★' : '☆'}
+          </button>
+          <button onClick={share} className="chip chip-tap text-xs" aria-label="share post">
+            {copied ? 'copied!' : '↗'}
+          </button>
+          <button
+            onClick={() => setShowComments(v => !v)}
+            className="chip chip-tap text-xs"
+            aria-expanded={showComments}
+          >
+            💬 <span className="mono">{commentCount > 0 ? commentCount : 'reply'}</span>
+          </button>
+        </div>
       </div>
 
       {showComments && (
