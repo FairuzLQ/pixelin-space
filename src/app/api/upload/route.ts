@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/supabaseAdmin'
 import { isBlocked, rateLimit, WEEK_MS } from '@/lib/apiGuards'
+import { moderateImage } from '@/lib/imageModeration'
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'])
 const ALLOWED_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'])
@@ -60,6 +61,12 @@ export async function POST(req: NextRequest) {
   // cap uploads to keep storage costs bounded
   if (!(await rateLimit(supa, `upload:${fingerprint}`, 12, 60 * 60_000))) {
     return NextResponse.json({ error: 'slow_down' }, { status: 429 })
+  }
+
+  // gore / NSFW screening before the image ever hits public storage (opt-in)
+  const mod = await moderateImage(file)
+  if (!mod.ok) {
+    return NextResponse.json({ error: 'image_rejected', reason: mod.reason }, { status: 400 })
   }
 
   const safeExt = ext

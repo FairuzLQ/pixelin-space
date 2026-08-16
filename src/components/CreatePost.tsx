@@ -72,9 +72,16 @@ export default function CreatePost({ onPosted }: Props) {
       fd.append('file', image)
       fd.append('fingerprint', getFingerprint())
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.url) {
-        setError(data.error ?? 'upload gagal, coba lagi')
+        const msg = data.error === 'image_rejected'
+          ? 'gambar ditolak — terdeteksi konten sensitif/gore'
+          : data.error === 'slow_down'
+            ? 'kebanyakan upload, tunggu sebentar'
+            : data.error === 'no_identity'
+              ? 'refresh halaman dulu ya'
+              : 'upload gagal, coba lagi'
+        setError(msg)
         setUploading(false)
         return
       }

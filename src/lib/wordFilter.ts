@@ -12,7 +12,7 @@ const INDONESIAN = [
   'anjing', 'anjg', 'anjeng', 'ajg', 'asu', 'asw',
   'bangsat', 'bajingan', 'bangke', 'bangsad',
   'kontol', 'kntl', 'kontl', 'kimak', 'kimac', 'pukimak', 'pukima',
-  'memek', 'mmk', 'pepek', 'pepe', 'tempek', 'henceut',
+  'memek', 'mmk', 'pepek', 'pepe', 'tempek', 'henceut', 'meki',
   'ngentot', 'ngntd', 'ngentd', 'entot', 'ngewe', 'ewe', 'coli', 'colmek',
   'tai', 'taik', 'taek', 'tolol', 'goblok', 'goblog', 'bego', 'bangsat',
   'jancok', 'jancuk', 'cok', 'cuk', 'diancok', 'jembut', 'jmbt',
@@ -20,6 +20,13 @@ const INDONESIAN = [
   'bencong', 'banci', 'homo', 'lgbt',
   'pantek', 'pantat', 'silit', 'peler', 'pler', 'titit', 'kutang',
   'ngaceng', 'coki', 'itil',
+  // slang / gaul (vulgar & sexual)
+  'nenen', 'nen', 'toket', 'tetek', 'tete', 'netek',
+  'bokep', 'bokeb', 'sange', 'sangean', 'sangek', 'sanges',
+  'crot', 'croot', 'crott', 'onani',
+  'cukimai', 'cukima', 'kimcil', 'bispak', 'bisyar',
+  'cabul', 'mesum', 'bejat', 'kampang', 'gituan',
+  'ngeseks', 'ngesex', 'sepong', 'nyepong',
 ]
 
 const ENGLISH = [
@@ -30,7 +37,9 @@ const ENGLISH = [
   'pussy', 'cunt', 'twat', 'wanker',
   'slut', 'whore', 'hoe', 'skank',
   'nigger', 'nigga', 'niggah', 'faggot', 'fag', 'retard', 'retarded',
-  'jerk', 'douche', 'dildo', 'boobs', 'coon',
+  'jerk', 'douche', 'dildo', 'boob', 'boobs', 'coon',
+  'tits', 'titties', 'titty', 'porn', 'porno', 'nudes', 'nude',
+  'cum', 'jizz', 'horny', 'blowjob', 'handjob', 'boobies',
 ]
 
 const WORDS = [...INDONESIAN, ...ENGLISH]
