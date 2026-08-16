@@ -26,11 +26,7 @@ export const metadata: Metadata = {
   description: 'a tiny anonymous space. pick a nickname, post, react, dm. resets every week.',
   applicationName: 'pixelin',
   manifest: '/manifest.webmanifest',
-  icons: {
-    icon: '/favicon.svg',
-    shortcut: '/favicon.svg',
-    apple: '/favicon.svg',
-  },
+  // favicon/apple-icon are provided by app/icon.svg + app/apple-icon.svg conventions
   openGraph: {
     type: 'website',
     url: SITE,
