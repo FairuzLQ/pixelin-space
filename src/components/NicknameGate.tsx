@@ -3,6 +3,19 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getNickname, setNickname, getFingerprint } from '@/lib/fingerprint'
+import { starRain, partyRain, flashToast } from '@/components/EasterEggs'
+
+// legendary nicknames → a little welcome surprise
+const SPECIAL_NICKS: Record<string, { msg: string; fx: () => void }> = {
+  '42': { msg: '42 — the answer ✷', fx: starRain },
+  neo: { msg: 'wake up… follow the white rabbit 🐇', fx: starRain },
+  glitch: { msg: 'g l i t c h in the space', fx: partyRain },
+  pixel: { msg: 'pixel perfect ✷', fx: starRain },
+  konami: { msg: '↑↑↓↓←→←→ B A', fx: starRain },
+  star: { msg: 'a star is born ✷', fx: starRain },
+  party: { msg: 'let\'s gooo 🎉', fx: partyRain },
+  ghost: { msg: 'boo 👻', fx: starRain },
+}
 
 export default function NicknameGate({ children }: { children: React.ReactNode }) {
   const [nickname, setLocalNickname] = useState<string | null>(null)
@@ -73,6 +86,10 @@ export default function NicknameGate({ children }: { children: React.ReactNode }
     setNickname(trimmed)
     setLocalNickname(trimmed)
     setChecking(false)
+
+    // legendary nickname? fire a surprise once the feed is showing
+    const special = SPECIAL_NICKS[trimmed.toLowerCase()]
+    if (special) setTimeout(() => { special.fx(); flashToast(special.msg) }, 450)
   }
 
   if (loading) return null

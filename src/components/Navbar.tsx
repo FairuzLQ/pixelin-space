@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getNickname, getFingerprint } from '@/lib/fingerprint'
@@ -15,6 +15,19 @@ export default function Navbar() {
   const [nickname, setNickname] = useState<string | null>(null)
   const [hasUnread, setHasUnread] = useState(false)
   const pathname = usePathname()
+  const starTaps = useRef<number[]>([])
+
+  // tap the ✷ five times fast → confetti of stars (doesn't navigate)
+  function tapStar(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    const now = Date.now()
+    starTaps.current = [...starTaps.current.filter(t => now - t < 1500), now]
+    if (starTaps.current.length >= 5) {
+      starTaps.current = []
+      window.dispatchEvent(new Event('pixelin:egg'))
+    }
+  }
 
   useEffect(() => {
     setNickname(getNickname())
@@ -82,8 +95,9 @@ export default function Navbar() {
       <Link href="/" className="flex items-center gap-1.5 shrink-0" aria-label="pixelin.space">
         <span
           className="inline-flex items-center justify-center w-7 h-7 rounded-md text-sm"
-          style={{ background: 'var(--accent)', border: '2.5px solid var(--ink)', boxShadow: 'var(--shadow-sm)' }}
-          aria-hidden
+          style={{ background: 'var(--accent)', border: '2.5px solid var(--ink)', boxShadow: 'var(--shadow-sm)', cursor: 'pointer' }}
+          onClick={tapStar}
+          role="presentation"
         >
           ✷
         </span>

@@ -16,7 +16,8 @@ const KONAMI = [
 ]
 const COLORS = ['#ff5a2c', '#d4f24a', '#ff5c9e', '#2f6bff', '#16130d']
 
-function toast(msg: string) {
+export function flashToast(msg: string) {
+  if (typeof document === 'undefined') return
   const t = document.createElement('div')
   t.textContent = msg
   t.style.cssText =
@@ -48,7 +49,7 @@ export function starRain() {
     )
     anim.onfinish = () => s.remove()
   }
-  toast('✷ you found the stars')
+  flashToast('✷ you found the stars')
 }
 
 export function partyRain() {
@@ -72,7 +73,7 @@ export function partyRain() {
     )
     anim.onfinish = () => c.remove()
   }
-  toast('🎉 party mode')
+  flashToast('🎉 party mode')
 }
 
 /** A clickable star that rains stars — used on the 404 page. */
@@ -101,7 +102,7 @@ export default function EasterEggs() {
       stars: starRain,
       party: partyRain,
       help: () => console.log(
-        '%c✷ pixelin tricks\n%c• pixelin.stars()  — rain stars\n• pixelin.party()  — confetti\n• konami: ↑↑↓↓←→←→ B A\n• type "stars" or "party" anywhere',
+        '%c✷ pixelin tricks\n%c• pixelin.stars()  — rain stars\n• pixelin.party()  — confetti\n• konami: ↑↑↓↓←→←→ B A\n• type "stars" or "party" anywhere\n• pick a legendary nickname (neo, 42, glitch…)\n• visit /42',
         'color:#ff5a2c;font-weight:700', 'color:#16130d',
       ),
     }
