@@ -53,8 +53,11 @@ export function getNickname(): string | null {
 }
 
 export function setNickname(name: string): void {
-  // always generate a new fp_id on new identity (fresh week or first login)
-  localStorage.setItem('ps_fp_id', genId())
+  // NOTE: do NOT regenerate ps_fp_id here. The nickname is claimed server-side
+  // using the *current* fingerprint just before this call; regenerating the
+  // fp_id now would change the fingerprint and break ownsNickname() on the next
+  // write ("identity_mismatch"). A fresh weekly identity is already handled by
+  // getNickname(), which clears ps_fp_id when the nickname expires.
   localStorage.setItem('ps_nickname', name)
   localStorage.setItem('ps_nickname_created', Date.now().toString())
 }
