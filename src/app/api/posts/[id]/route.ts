@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/supabaseAdmin'
 import { broadcastEvent } from '@/lib/broadcast'
 import { anonDb } from '@/lib/apiGuards'
+import { censorText } from '@/lib/wordFilter'
 
 const MAX_CONTENT = 1000
 const EDIT_WINDOW_MS = 15 * 60 * 1000 // posts are editable for 15 min after creation
@@ -81,7 +82,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data, error } = await admin
     .from('posts')
-    .update({ content, edited_at: new Date().toISOString() })
+    .update({ content: censorText(content), edited_at: new Date().toISOString() })
     .eq('id', id)
     .select('id, content, image_url, nickname, created_at, edited_at, reaction_count, comment_count')
     .single()

@@ -3,6 +3,7 @@ import { adminDb } from '@/lib/supabaseAdmin'
 import {
   anonDb, getIp, hashIp, isBlocked, ownsNickname, rateLimit, validateNickname,
 } from '@/lib/apiGuards'
+import { censorText } from '@/lib/wordFilter'
 
 const MAX_CONTENT = 500
 
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await db
     .from('comments')
-    .insert({ post_id, content, nickname, ip_hash, fingerprint })
+    .insert({ post_id, content: censorText(content), nickname, ip_hash, fingerprint })
     .select('id, post_id, content, nickname, created_at')
     .single()
 

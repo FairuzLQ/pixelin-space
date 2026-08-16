@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/supabaseAdmin'
 import { isBlocked, ownsNickname, rateLimit, validateNickname, normalizeNickname } from '@/lib/apiGuards'
+import { censorText } from '@/lib/wordFilter'
 
 function db() {
   return adminDb()
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: msg, error } = await supabase
     .from('dm_messages')
-    .insert({ conversation_id: id, content, sender_nickname, sender_fingerprint })
+    .insert({ conversation_id: id, content: censorText(content), sender_nickname, sender_fingerprint })
     .select('id, sender_nickname, content, created_at')
     .single()
 

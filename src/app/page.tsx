@@ -165,7 +165,7 @@ export default function FeedPage() {
   const segBtn = (val: Sort, label: string) => (
     <button
       onClick={() => setSort(val)}
-      className="text-xs px-3 py-1.5 font-bold uppercase tracking-tight rounded-lg"
+      className="text-xs px-2.5 sm:px-3 py-1.5 font-bold uppercase tracking-tight rounded-lg"
       style={{
         background: sort === val ? 'var(--ink)' : 'transparent',
         color: sort === val ? 'var(--paper)' : 'var(--ink)',
@@ -194,21 +194,22 @@ export default function FeedPage() {
 
         {/* controls: sort + search */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-0.5 p-0.5 rounded-lg" style={{ border: '2.5px solid var(--ink)', background: 'var(--bg2)' }}>
+          <div className="flex items-center gap-0.5 p-0.5 rounded-lg shrink-0" style={{ border: '2.5px solid var(--ink)', background: 'var(--bg2)' }}>
             {segBtn('new', 'new')}
             {segBtn('top', 'top')}
           </div>
-          <form onSubmit={runSearch} className="flex-1 flex items-center gap-2">
+          {/* min-w-0 lets the input shrink instead of overflowing the row on phones */}
+          <form onSubmit={runSearch} className="flex-1 min-w-0 flex items-center gap-2">
             <input
-              className="flex-1 px-3 py-2 text-sm"
-              placeholder="search posts / #tags…"
+              className="flex-1 min-w-0 px-3 py-2 text-sm"
+              placeholder="search…"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              aria-label="search posts"
+              aria-label="search posts and hashtags"
             />
             {activeQuery
-              ? <button type="button" onClick={clearSearch} className="btn-ghost text-xs px-3 py-2">clear</button>
-              : <button type="submit" className="btn-primary text-xs px-3 py-2" aria-label="search">🔍</button>}
+              ? <button type="button" onClick={clearSearch} className="btn-ghost text-xs px-3 py-2 shrink-0">clear</button>
+              : <button type="submit" className="btn-primary text-sm px-3.5 py-2 shrink-0" aria-label="search">🔍</button>}
           </form>
         </div>
 

@@ -35,6 +35,7 @@
 }
 
 @theme inline {
+  --breakpoint-xs: 400px;
   --color-paper: var(--paper);
   --color-ink: var(--ink);
   --color-space-accent: var(--accent);

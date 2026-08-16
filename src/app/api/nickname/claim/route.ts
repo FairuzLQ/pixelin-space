@@ -3,6 +3,7 @@ import { adminDb } from '@/lib/supabaseAdmin'
 import {
   anonDb, getIp, hashIp, rateLimit, validateNickname, normalizeNickname, WEEK_MS,
 } from '@/lib/apiGuards'
+import { hasProfanity } from '@/lib/wordFilter'
 
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>
@@ -13,6 +14,9 @@ export async function POST(req: NextRequest) {
 
   if (!display || !fingerprint) {
     return NextResponse.json({ error: 'invalid nickname' }, { status: 400 })
+  }
+  if (hasProfanity(display)) {
+    return NextResponse.json({ error: 'inappropriate nickname' }, { status: 400 })
   }
   const nickname = normalizeNickname(display)
 

@@ -87,10 +87,10 @@ export default function Navbar() {
         >
           ✷
         </span>
-        <span className="display text-lg leading-none" style={{ color: 'var(--ink)' }}>pixelin</span>
+        <span className="display text-lg leading-none hidden xs:inline" style={{ color: 'var(--ink)' }}>pixelin</span>
       </Link>
 
-      <div className="flex items-center gap-1 min-w-0">
+      <div className="flex items-center gap-0.5 sm:gap-1 min-w-0">
         {tab('/', 'feed', pathname === '/')}
         {tab('/saved', 'saved', pathname === '/saved')}
         {tab('/dm', 'dm', pathname.startsWith('/dm'), hasUnread && !pathname.startsWith('/dm'))}

@@ -5,6 +5,7 @@ import {
   anonDb, getIp, hashIp, isBlocked, ownsNickname, rateLimit,
   validateNickname, isValidImageUrl,
 } from '@/lib/apiGuards'
+import { censorText } from '@/lib/wordFilter'
 
 const MAX_CONTENT = 1000
 const WEEKLY_POST_CAP = 3
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await db
     .from('posts')
-    .insert({ content, image_url: image_url || null, nickname, ip_hash, fingerprint })
+    .insert({ content: censorText(content), image_url: image_url || null, nickname, ip_hash, fingerprint })
     .select('id, content, image_url, nickname, created_at, edited_at, reaction_count, comment_count')
     .single()
 

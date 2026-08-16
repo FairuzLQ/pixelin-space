@@ -11,6 +11,10 @@ const supabaseHost = (() => {
 const supaHttps = supabaseHost ? `https://${supabaseHost}` : 'https://*.supabase.co'
 const supaWss = supabaseHost ? `wss://${supabaseHost}` : 'wss://*.supabase.co'
 
+// React's dev tooling needs eval(); production never does. Only relax in dev.
+const isDev = process.env.NODE_ENV !== 'production'
+const scriptSrc = `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`
+
 const csp = [
   `default-src 'self'`,
   `base-uri 'self'`,
@@ -18,9 +22,10 @@ const csp = [
   `frame-ancestors 'none'`,
   `form-action 'self'`,
   // inline styles are used heavily (style={{…}}); scripts need inline for Next
-  // hydration. No 'unsafe-eval'. User content is React-escaped, so this is
-  // defense-in-depth rather than the primary XSS control.
-  `script-src 'self' 'unsafe-inline'`,
+  // hydration. 'unsafe-eval' is added in dev only (React debugging). User
+  // content is React-escaped, so this is defense-in-depth, not the primary
+  // XSS control.
+  scriptSrc,
   `style-src 'self' 'unsafe-inline'`,
   `img-src 'self' data: blob: ${supaHttps}`,
   `font-src 'self' data:`,
