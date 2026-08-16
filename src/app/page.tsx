@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import type { Post } from '@/types/database'
 import Navbar from '@/components/Navbar'
 import NicknameGate from '@/components/NicknameGate'
@@ -263,6 +264,12 @@ export default function FeedPage() {
             </div>
           </>
         )}
+
+        <footer className="flex items-center gap-3 justify-center pt-1 pb-6 text-xs" style={{ color: 'var(--text2)' }}>
+          <Link href="/about" className="linkified">about &amp; rules</Link>
+          <span aria-hidden>·</span>
+          <Link href="/privacy" className="linkified">privacy</Link>
+        </footer>
       </main>
     </NicknameGate>
   )

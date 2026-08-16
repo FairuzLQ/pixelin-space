@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { getNickname, setNickname, getFingerprint } from '@/lib/fingerprint'
 
 export default function NicknameGate({ children }: { children: React.ReactNode }) {
@@ -132,6 +133,11 @@ export default function NicknameGate({ children }: { children: React.ReactNode }
 
           <p className="text-xs text-center" style={{ color: 'var(--text2)' }}>
             a nickname is yours for 7 days, then it&apos;s up for grabs again.
+          </p>
+          <p className="text-xs text-center" style={{ color: 'var(--text2)' }}>
+            by entering you agree to the{' '}
+            <Link href="/about" className="linkified">rules</Link> &amp;{' '}
+            <Link href="/privacy" className="linkified">privacy</Link>.
           </p>
         </div>
       </div>
