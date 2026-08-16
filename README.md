@@ -33,15 +33,10 @@ ADMIN_PASSWORD=...
 ADMIN_SECRET=...                    # HMAC secret for the admin session cookie
 IP_HASH_SALT=...                    # optional; salt for hashed IPs
 CRON_SECRET=...                     # Bearer token for /api/cron/cleanup
-
-# optional — image moderation (gore/NSFW). If unset, uploads skip the check.
-SIGHTENGINE_API_USER=...            # free tier at sightengine.com
-SIGHTENGINE_API_SECRET=...
 ```
 
-Text is filtered for Indonesian + English profanity ([src/lib/wordFilter.ts](src/lib/wordFilter.ts))
-automatically. Image gore/NSFW screening ([src/lib/imageModeration.ts](src/lib/imageModeration.ts))
-activates only when the two `SIGHTENGINE_*` vars are set.
+Posts are text-only. Content is auto-filtered for Indonesian + English profanity
+([src/lib/wordFilter.ts](src/lib/wordFilter.ts)).
 
 ### 2. Run the database migration ⚠️ required
 
@@ -68,12 +63,9 @@ browser **fingerprint**:
   anon key can only *read* public data (RLS allows select-only where appropriate;
   DMs, blocks, and `rate_events` have no anon access at all).
 - Sliding-window **rate limits** (`rate_events`) on posts, comments, reactions,
-  DMs, uploads, and nickname claims.
-- Uploads require an active identity, validate MIME + extension + size, and only
-  ever store to the `post-images` bucket. Post `image_url`s are validated to point
-  at that bucket.
-- Security headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`,
-  HSTS, `Permissions-Policy`) are set in `next.config.ts`.
+  DMs, and nickname claims.
+- Security headers (CSP, `X-Frame-Options`, `X-Content-Type-Options`,
+  `Referrer-Policy`, HSTS, `Permissions-Policy`) are set in `next.config.ts`.
 - Admin routes are guarded server-side by a timing-safe HMAC session cookie with a
   7-day expiry; `proxy.ts` additionally gates the dashboard page.
 

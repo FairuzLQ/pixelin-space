@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import type { Post } from '@/types/database'
 import { getFingerprint, getNickname } from '@/lib/fingerprint'
@@ -63,7 +62,6 @@ export default function PostCard({ post, initialReactions, onDeleted, onEdited, 
   const [mine, setMine] = useState<Set<string>>(new Set(initialReactions?.mine ?? []))
   const [showComments, setShowComments] = useState(!!defaultOpenComments)
   const [commentCount, setCommentCount] = useState(post.comment_count)
-  const [imgExpanded, setImgExpanded] = useState(false)
   const [dmLoading, setDmLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -264,24 +262,6 @@ export default function PostCard({ post, initialReactions, onDeleted, onEdited, 
             <RichText text={content} />
           </p>
         )
-      )}
-
-      {post.image_url && (
-        <button
-          className="rounded-lg overflow-hidden cursor-pointer text-left"
-          style={{ border: '2.5px solid var(--ink)' }}
-          onClick={() => setImgExpanded(e => !e)}
-          aria-label="toggle image size"
-        >
-          <Image
-            src={post.image_url}
-            alt="post attachment"
-            width={600}
-            height={400}
-            className="w-full"
-            style={{ maxHeight: imgExpanded ? 'none' : '320px', objectFit: 'cover', display: 'block' }}
-          />
-        </button>
       )}
 
       <div className="flex items-center gap-1.5 flex-wrap">

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/supabaseAdmin'
 import { broadcastEvent } from '@/lib/broadcast'
 import {
-  anonDb, getIp, hashIp, isBlocked, ownsNickname, rateLimit,
-  validateNickname, isValidImageUrl,
+  anonDb, getIp, hashIp, isBlocked, ownsNickname, rateLimit, validateNickname,
 } from '@/lib/apiGuards'
 import { censorText } from '@/lib/wordFilter'
 
@@ -50,19 +49,15 @@ export async function POST(req: NextRequest) {
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad request' }, { status: 400 }) }
 
-  const content = typeof body.content === 'string' ? body.content : null
-  const image_url = body.image_url ?? null
+  const content = typeof body.content === 'string' ? body.content.trim() : ''
   const fingerprint = typeof body.fingerprint === 'string' ? body.fingerprint : ''
   const nickname = validateNickname(body.nickname)
 
-  if (!nickname || (!content && !image_url)) {
+  if (!nickname || !content) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
-  if (content && content.length > MAX_CONTENT) {
+  if (content.length > MAX_CONTENT) {
     return NextResponse.json({ error: 'content too long' }, { status: 400 })
-  }
-  if (!isValidImageUrl(image_url)) {
-    return NextResponse.json({ error: 'invalid image' }, { status: 400 })
   }
 
   let db
@@ -97,7 +92,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await db
     .from('posts')
-    .insert({ content: censorText(content), image_url: image_url || null, nickname, ip_hash, fingerprint })
+    .insert({ content: censorText(content), image_url: null, nickname, ip_hash, fingerprint })
     .select('id, content, image_url, nickname, created_at, edited_at, reaction_count, comment_count')
     .single()
 

@@ -101,13 +101,3 @@ export async function rateLimit(db: Db, bucket: string, limit: number, windowMs:
   await db.from('rate_events').insert({ bucket })
   return true
 }
-
-// --------------------------------------------------------------- image_url check
-/** Only accept image URLs that point at our own public storage bucket. */
-export function isValidImageUrl(url: unknown): boolean {
-  if (url === null || url === undefined || url === '') return true // optional
-  if (typeof url !== 'string') return false
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL
-  if (!base) return false
-  return url.startsWith(`${base}/storage/v1/object/public/post-images/`)
-}

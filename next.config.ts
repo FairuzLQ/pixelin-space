@@ -1,13 +1,11 @@
 import type { NextConfig } from "next";
 
-// Derive the exact Supabase host so we don't allow images from *any* *.supabase.co
+// Supabase host, used to scope CSP connect-src (REST + realtime) to our project.
 const supabaseHost = (() => {
   try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').hostname }
   catch { return undefined }
 })()
 
-// Supabase origins for REST (https) + realtime (wss). Fall back to the wildcard
-// only if the env var is missing at build time.
 const supaHttps = supabaseHost ? `https://${supabaseHost}` : 'https://*.supabase.co'
 const supaWss = supabaseHost ? `wss://${supabaseHost}` : 'wss://*.supabase.co'
 
@@ -27,11 +25,9 @@ const csp = [
   // XSS control.
   scriptSrc,
   `style-src 'self' 'unsafe-inline'`,
-  `img-src 'self' data: blob: ${supaHttps}`,
+  `img-src 'self' data:`,
   `font-src 'self' data:`,
   `connect-src 'self' ${supaHttps} ${supaWss}`,
-  // browser-image-compression spins up a web worker from a blob URL
-  `worker-src 'self' blob:`,
   `manifest-src 'self'`,
   `upgrade-insecure-requests`,
 ].join('; ')
@@ -51,11 +47,6 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  images: {
-    remotePatterns: supabaseHost
-      ? [{ protocol: 'https', hostname: supabaseHost }]
-      : [{ protocol: 'https', hostname: '**.supabase.co' }],
-  },
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },

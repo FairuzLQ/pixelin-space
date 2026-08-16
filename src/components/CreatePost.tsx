@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import type { Post } from '@/types/database'
 import { getNickname, getFingerprint, getNicknameExpiresAt } from '@/lib/fingerprint'
 
@@ -17,13 +17,10 @@ const MAX_CHARS = 1000
 
 export default function CreatePost({ onPosted }: Props) {
   const [content, setContent] = useState('')
-  const [image, setImage] = useState<File | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
+  const [posting, setPosting] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [postCount, setPostCount] = useState<number | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const expiresAt = getNicknameExpiresAt()
   const daysLeft = expiresAt ? daysUntil(expiresAt) : null
@@ -37,63 +34,18 @@ export default function CreatePost({ onPosted }: Props) {
       .catch(() => {})
   }, [])
 
-  async function pickImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    // lazy-load: not in initial bundle, only downloaded when user actually picks a photo
-    const { default: imageCompression } = await import('browser-image-compression')
-    const compressed = await imageCompression(file, {
-      maxSizeMB: 0.8,
-      maxWidthOrHeight: 1200,
-      useWebWorker: true,
-    })
-    // web worker transfer strips File.name — re-wrap with original filename
-    const named = new File([compressed], file.name, { type: compressed.type })
-    setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(named) })
-    setImage(named)
-  }
-
-  function removeImage() {
-    setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null })
-    setImage(null)
-    if (fileRef.current) fileRef.current.value = ''
-  }
-
   async function submit() {
     const nickname = getNickname()
-    if (!nickname || uploading) return
-    if (!content.trim() && !image) return
-    setUploading(true)
+    if (!nickname || posting) return
+    if (!content.trim()) return
+    setPosting(true)
     setError(null)
-
-    let image_url: string | null = null
-    if (image) {
-      const fd = new FormData()
-      fd.append('file', image)
-      fd.append('fingerprint', getFingerprint())
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data.url) {
-        const msg = data.error === 'image_rejected'
-          ? 'gambar ditolak — terdeteksi konten sensitif/gore'
-          : data.error === 'slow_down'
-            ? 'kebanyakan upload, tunggu sebentar'
-            : data.error === 'no_identity'
-              ? 'refresh halaman dulu ya'
-              : 'upload gagal, coba lagi'
-        setError(msg)
-        setUploading(false)
-        return
-      }
-      image_url = data.url
-    }
 
     const res = await fetch('/api/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        content: content.trim() || null,
-        image_url,
+        content: content.trim(),
         nickname,
         fingerprint: getFingerprint(),
       }),
@@ -108,25 +60,24 @@ export default function CreatePost({ onPosted }: Props) {
       } else {
         setError('slow down a sec ✷')
       }
-      setUploading(false)
+      setPosting(false)
       return
     }
     if (res.status === 403) {
       setError(data.error === 'identity_mismatch'
         ? 'session expired — refresh the page'
         : 'your account is blocked by admin.')
-      setUploading(false)
+      setPosting(false)
       return
     }
 
     if (data.post) {
       onPosted(data.post)
       setContent('')
-      removeImage()
       setExpanded(false)
       setPostCount(c => c !== null ? Math.min(3, c + 1) : null)
     }
-    setUploading(false)
+    setPosting(false)
   }
 
   const charsLeft = MAX_CHARS - content.length
@@ -168,32 +119,12 @@ export default function CreatePost({ onPosted }: Props) {
         aria-label="write a post"
       />
 
-      {preview && (
-        <div className="relative w-full">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="preview" className="w-full rounded-lg object-cover max-h-56" style={{ border: '2.5px solid var(--ink)' }} />
-          <button
-            onClick={removeImage}
-            className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold"
-            style={{ background: 'var(--accent)', color: 'var(--ink)', border: '2.5px solid var(--ink)' }}
-            aria-label="remove image"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       {error && (
         <p className="text-xs font-bold" style={{ color: 'var(--accent)' }}>{error}</p>
       )}
 
       {expanded && !postLimitReached && (
         <div className="flex items-center gap-2 flex-wrap">
-          <button className="btn-ghost text-xs px-3 py-2" onClick={() => fileRef.current?.click()}>
-            📎 photo
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickImage} />
-
           {nearLimit && (
             <span className="text-xs mono" style={{ color: charsLeft <= 20 ? 'var(--accent)' : 'var(--text2)' }}>
               {charsLeft}
@@ -203,16 +134,16 @@ export default function CreatePost({ onPosted }: Props) {
           <div className="ml-auto flex gap-2">
             <button
               className="btn-ghost text-xs px-3 py-2"
-              onClick={() => { setExpanded(false); setContent(''); removeImage(); setError(null) }}
+              onClick={() => { setExpanded(false); setContent(''); setError(null) }}
             >
               cancel
             </button>
             <button
               className="btn-primary text-xs px-4 py-2"
               onClick={submit}
-              disabled={uploading || (!content.trim() && !image)}
+              disabled={posting || !content.trim()}
             >
-              {uploading ? 'posting…' : 'post ✷'}
+              {posting ? 'posting…' : 'post ✷'}
             </button>
           </div>
         </div>
