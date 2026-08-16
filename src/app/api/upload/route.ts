@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/supabaseAdmin'
+import { isBlocked, rateLimit, WEEK_MS } from '@/lib/apiGuards'
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'])
 const ALLOWED_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'])
@@ -40,15 +41,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 
-  // reject blocked fingerprints
-  const { data: blocked } = await supa
-    .from('blocked_fingerprints')
-    .select('id')
-    .eq('fingerprint', fingerprint)
-    .maybeSingle()
-
-  if (blocked) {
+  if (await isBlocked(supa, fingerprint)) {
     return NextResponse.json({ error: 'blocked' }, { status: 403 })
+  }
+
+  // only established identities may upload — stops anonymous storage spam
+  const weekAgo = new Date(Date.now() - WEEK_MS).toISOString()
+  const { data: claim } = await supa
+    .from('nickname_claims')
+    .select('nickname')
+    .eq('fingerprint', fingerprint)
+    .gte('claimed_at', weekAgo)
+    .maybeSingle()
+  if (!claim) {
+    return NextResponse.json({ error: 'no_identity' }, { status: 403 })
+  }
+
+  // cap uploads to keep storage costs bounded
+  if (!(await rateLimit(supa, `upload:${fingerprint}`, 12, 60 * 60_000))) {
+    return NextResponse.json({ error: 'slow_down' }, { status: 429 })
   }
 
   const safeExt = ext

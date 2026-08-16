@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { adminDb } from '@/lib/supabaseAdmin'
-import { createHash } from 'crypto'
+import {
+  anonDb, getIp, hashIp, isBlocked, ownsNickname, rateLimit, validateNickname,
+} from '@/lib/apiGuards'
 
-function anonDb() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-}
-
-function hashIp(ip: string) {
-  const salt = process.env.IP_HASH_SALT ?? 'pixelin_salt_2024'
-  return createHash('sha256').update(ip + salt).digest('hex').slice(0, 16)
-}
+const MAX_CONTENT = 500
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -28,13 +22,18 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const { post_id, content, nickname, fingerprint } = body
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad request' }, { status: 400 }) }
+
+  const post_id = typeof body.post_id === 'string' ? body.post_id : ''
+  const content = typeof body.content === 'string' ? body.content.trim() : ''
+  const fingerprint = typeof body.fingerprint === 'string' ? body.fingerprint : ''
+  const nickname = validateNickname(body.nickname)
 
   if (!post_id || !content || !nickname) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
-  if (content.length > 1000) {
+  if (content.length > MAX_CONTENT) {
     return NextResponse.json({ error: 'content too long' }, { status: 400 })
   }
 
@@ -43,17 +42,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 
-  if (fingerprint) {
-    const { data: blocked } = await db
-      .from('blocked_fingerprints')
-      .select('id')
-      .eq('fingerprint', fingerprint)
-      .maybeSingle()
-    if (blocked) return NextResponse.json({ error: 'blocked' }, { status: 403 })
+  if (!(await ownsNickname(db, nickname, fingerprint))) {
+    return NextResponse.json({ error: 'identity_mismatch' }, { status: 403 })
+  }
+  if (await isBlocked(db, fingerprint)) {
+    return NextResponse.json({ error: 'blocked' }, { status: 403 })
+  }
+  // max 10 comments/min per identity
+  if (!(await rateLimit(db, `comment:${fingerprint}`, 10, 60_000))) {
+    return NextResponse.json({ error: 'slow_down' }, { status: 429 })
   }
 
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
-  const ip_hash = hashIp(ip)
+  const ip_hash = hashIp(getIp(req))
 
   const { data, error } = await db
     .from('comments')

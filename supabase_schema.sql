@@ -78,14 +78,26 @@ create table if not exists admin_settings (
   updated_at timestamptz not null default now()
 );
 
+-- Sliding-window rate limiting: one row per rate-limited action, swept by cron.
+create table if not exists rate_events (
+  id uuid primary key default gen_random_uuid(),
+  bucket text not null,
+  created_at timestamptz not null default now()
+);
+
+-- Additive columns (safe on existing tables)
+alter table posts add column if not exists edited_at timestamptz;
+
 -- Indexes
 create index if not exists posts_created_at_idx on posts(created_at desc);
 create index if not exists posts_fingerprint_idx on posts(fingerprint);
+create index if not exists posts_reaction_count_idx on posts(reaction_count desc);
 create index if not exists reactions_post_id_idx on reactions(post_id);
 create index if not exists comments_post_id_idx on comments(post_id);
 create index if not exists dm_participants_conversation_id_idx on dm_participants(conversation_id);
 create index if not exists dm_participants_fingerprint_idx on dm_participants(fingerprint);
 create index if not exists dm_messages_conversation_id_idx on dm_messages(conversation_id);
+create index if not exists rate_events_bucket_created_idx on rate_events(bucket, created_at desc);
 
 -- RPC functions (CREATE OR REPLACE = always safe)
 create or replace function increment_reactions(pid uuid)
@@ -118,6 +130,8 @@ alter table dm_messages enable row level security;
 alter table blocked_fingerprints enable row level security;
 alter table nickname_claims enable row level security;
 alter table admin_settings enable row level security;
+alter table rate_events enable row level security;
+-- rate_events: no anon policy at all — only service_role (which bypasses RLS) touches it
 
 -- Drop all policies before recreating (idempotent)
 do $$ begin

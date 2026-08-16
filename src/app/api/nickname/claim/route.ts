@@ -1,30 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { adminDb } from '@/lib/supabaseAdmin'
-
-function anonDb() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-}
-
-const WEEK = 7 * 24 * 60 * 60 * 1000
+import {
+  anonDb, getIp, hashIp, rateLimit, validateNickname, normalizeNickname, WEEK_MS,
+} from '@/lib/apiGuards'
 
 export async function POST(req: NextRequest) {
-  const { nickname, fingerprint } = await req.json()
-  if (!nickname || !fingerprint) {
-    return NextResponse.json({ error: 'missing fields' }, { status: 400 })
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad request' }, { status: 400 }) }
+
+  const display = validateNickname(body.nickname)
+  const fingerprint = typeof body.fingerprint === 'string' ? body.fingerprint : ''
+
+  if (!display || !fingerprint) {
+    return NextResponse.json({ error: 'invalid nickname' }, { status: 400 })
   }
+  const nickname = normalizeNickname(display)
 
   let db
   try { db = adminDb() } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 
-  const weekAgo = new Date(Date.now() - WEEK).toISOString()
+  // limit claims per IP so nobody can squat every nickname at reset time
+  const ipHash = hashIp(getIp(req))
+  if (!(await rateLimit(db, `claim:${ipHash}`, 12, 60 * 60_000))) {
+    return NextResponse.json({ error: 'slow_down' }, { status: 429 })
+  }
+
+  const weekAgo = new Date(Date.now() - WEEK_MS).toISOString()
 
   const { data: existing } = await db
     .from('nickname_claims')
     .select('fingerprint, claimed_at')
-    .eq('nickname', nickname.toLowerCase())
+    .eq('nickname', nickname)
     .maybeSingle()
 
   if (existing) {
@@ -38,27 +46,34 @@ export async function POST(req: NextRequest) {
     await db
       .from('nickname_claims')
       .update({ fingerprint, claimed_at: new Date().toISOString() })
-      .eq('nickname', nickname.toLowerCase())
+      .eq('nickname', nickname)
     return NextResponse.json({ ok: true })
   }
 
-  await db
+  const { error } = await db
     .from('nickname_claims')
-    .insert({ nickname: nickname.toLowerCase(), fingerprint, claimed_at: new Date().toISOString() })
+    .insert({ nickname, fingerprint, claimed_at: new Date().toISOString() })
+
+  // unique-constraint race: someone claimed it between our check and insert
+  if (error) {
+    if (error.code === '23505') return NextResponse.json({ error: 'taken' }, { status: 409 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true })
 }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const nickname = searchParams.get('nickname')
-  if (!nickname) return NextResponse.json({ error: 'missing nickname' }, { status: 400 })
+  const raw = searchParams.get('nickname')
+  const display = validateNickname(raw)
+  if (!display) return NextResponse.json({ available: false, error: 'invalid' }, { status: 200 })
 
-  const weekAgo = new Date(Date.now() - WEEK).toISOString()
+  const weekAgo = new Date(Date.now() - WEEK_MS).toISOString()
   const { data } = await anonDb()
     .from('nickname_claims')
-    .select('claimed_at')  // fingerprint omitted — not needed for availability check
-    .eq('nickname', nickname.toLowerCase())
+    .select('claimed_at')
+    .eq('nickname', normalizeNickname(display))
     .maybeSingle()
 
   const available = !data || data.claimed_at < weekAgo

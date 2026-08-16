@@ -1,20 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { adminDb } from '@/lib/supabaseAdmin'
+import { anonDb, isBlocked, rateLimit } from '@/lib/apiGuards'
 
-function anonDb() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-}
+const VALID_TYPES = new Set(['fire', 'laugh', 'love', 'star'])
 
 export async function POST(req: NextRequest) {
-  const { post_id, type, fingerprint } = await req.json()
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad request' }, { status: 400 }) }
+
+  const post_id = typeof body.post_id === 'string' ? body.post_id : ''
+  const type = typeof body.type === 'string' ? body.type : ''
+  const fingerprint = typeof body.fingerprint === 'string' ? body.fingerprint : ''
+
   if (!post_id || !type || !fingerprint) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
+  }
+  if (!VALID_TYPES.has(type)) {
+    return NextResponse.json({ error: 'invalid type' }, { status: 400 })
   }
 
   let db
   try { db = adminDb() } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
+
+  if (await isBlocked(db, fingerprint)) {
+    return NextResponse.json({ error: 'blocked' }, { status: 403 })
+  }
+  // generous cap — reactions are cheap but shouldn't be scriptable at scale
+  if (!(await rateLimit(db, `react:${fingerprint}`, 40, 60_000))) {
+    return NextResponse.json({ error: 'slow_down' }, { status: 429 })
   }
 
   const { data: existing } = await db
@@ -48,7 +63,6 @@ export async function GET(req: NextRequest) {
 
   const ids = post_ids ? post_ids.split(',').filter(Boolean) : [post_id!]
 
-  // reads can still use anon key (reactions are public data)
   const { data } = await anonDb()
     .from('reactions')
     .select('post_id, type, fingerprint')

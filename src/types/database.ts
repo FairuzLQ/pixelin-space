@@ -8,6 +8,7 @@ export type Database = {
           image_url: string | null
           nickname: string
           created_at: string
+          edited_at: string | null
           ip_hash: string | null
           fingerprint: string | null
           reaction_count: number
@@ -19,6 +20,7 @@ export type Database = {
           image_url?: string | null
           nickname: string
           created_at?: string
+          edited_at?: string | null
           ip_hash?: string | null
           fingerprint?: string | null
           reaction_count?: number

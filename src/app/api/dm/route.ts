@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/supabaseAdmin'
+import { isBlocked, ownsNickname, rateLimit, validateNickname } from '@/lib/apiGuards'
 
 function db() {
   try { return adminDb() } catch { return null }
@@ -57,9 +58,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { inviter_nickname, inviter_fingerprint, invitee_nicknames } = await req.json()
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad request' }, { status: 400 }) }
 
-  if (!inviter_fingerprint || !inviter_nickname || !invitee_nicknames?.length) {
+  const inviter_fingerprint = typeof body.inviter_fingerprint === 'string' ? body.inviter_fingerprint : ''
+  const inviter_nickname = validateNickname(body.inviter_nickname)
+  const rawInvitees = Array.isArray(body.invitee_nicknames) ? body.invitee_nicknames : []
+  const invitee_nicknames = rawInvitees
+    .map(n => validateNickname(n))
+    .filter((n): n is string => !!n && n.toLowerCase() !== inviter_nickname?.toLowerCase())
+
+  if (!inviter_fingerprint || !inviter_nickname || invitee_nicknames.length === 0) {
     return NextResponse.json({ error: 'missing fields' }, { status: 400 })
   }
   if (1 + invitee_nicknames.length > 3) {
@@ -68,6 +77,16 @@ export async function POST(req: NextRequest) {
 
   const supabase = db()
   if (!supabase) return NextResponse.json({ error: 'server misconfigured' }, { status: 500 })
+
+  if (!(await ownsNickname(supabase, inviter_nickname, inviter_fingerprint))) {
+    return NextResponse.json({ error: 'identity_mismatch' }, { status: 403 })
+  }
+  if (await isBlocked(supabase, inviter_fingerprint)) {
+    return NextResponse.json({ error: 'blocked' }, { status: 403 })
+  }
+  if (!(await rateLimit(supabase, `dmnew:${inviter_fingerprint}`, 10, 60 * 60_000))) {
+    return NextResponse.json({ error: 'slow_down' }, { status: 429 })
+  }
 
   const { data: conv, error } = await supabase
     .from('dm_conversations')
@@ -87,7 +106,7 @@ export async function POST(req: NextRequest) {
     await supabase.from('dm_participants').insert({
       conversation_id: conv.id,
       nickname: nick,
-      fingerprint: 'pending_' + nick,
+      fingerprint: 'pending_' + nick.toLowerCase(),
     })
   }
 

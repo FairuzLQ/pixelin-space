@@ -27,5 +27,9 @@ export async function GET(req: NextRequest) {
   await db.from('posts').delete().lt('created_at', cutoff)
   await db.from('nickname_claims').delete().lt('claimed_at', cutoff)
 
+  // rate_events churn fast — a 1h window keeps the table tiny
+  const rateCutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  await db.from('rate_events').delete().lt('created_at', rateCutoff)
+
   return NextResponse.json({ ok: true, cutoff })
 }
