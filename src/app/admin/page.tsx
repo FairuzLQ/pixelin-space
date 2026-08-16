@@ -24,7 +24,7 @@ export default function AdminLogin() {
     if (res.ok) {
       router.push('/admin/dashboard')
     } else {
-      setError('username atau password salah')
+      setError(res.status === 429 ? 'terlalu banyak percobaan, tunggu ~10 menit' : 'username atau password salah')
       setLoading(false)
     }
   }

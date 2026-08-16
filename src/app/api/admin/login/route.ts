@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { signToken } from '@/lib/adminAuth'
+import { adminDb } from '@/lib/supabaseAdmin'
+import { getIp, hashIp, rateLimit } from '@/lib/apiGuards'
 
 function safeEq(a: string, b: string): boolean {
   try {
@@ -9,7 +11,18 @@ function safeEq(a: string, b: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  const { username, password } = await req.json()
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad request' }, { status: 400 }) }
+  const username = typeof body.username === 'string' ? body.username : ''
+  const password = typeof body.password === 'string' ? body.password : ''
+
+  // throttle brute-force: 8 attempts / 10 min per IP
+  try {
+    const db = adminDb()
+    if (!(await rateLimit(db, `adminlogin:${hashIp(getIp(req))}`, 8, 10 * 60_000))) {
+      return NextResponse.json({ error: 'too_many_attempts' }, { status: 429 })
+    }
+  } catch { /* if DB is unavailable, fall through — don't lock admins out entirely */ }
 
   const validUser = process.env.ADMIN_USERNAME ?? ''
   const validPass = process.env.ADMIN_PASSWORD ?? ''
