@@ -70,7 +70,9 @@ export default function FeedPage() {
     if (sort === 'top') params.set('sort', 'top')
     if (activeQuery) params.set('q', activeQuery)
     if (cur && sort === 'new' && !activeQuery) params.set('cursor', cur)
-    const res = await fetch(`/api/posts?${params.toString()}`)
+    const qs = params.toString()
+    // keep the empty-param URL stable so it shares the edge cache key
+    const res = await fetch(qs ? `/api/posts?${qs}` : '/api/posts')
     const data = await res.json()
     const fetched: Post[] = data.posts ?? []
 
@@ -99,7 +101,9 @@ export default function FeedPage() {
     if (!plain) return
     const timer = setInterval(async () => {
       try {
-        const res = await fetch(`/api/posts?_t=${Date.now()}`)
+        // no cache-buster: ride the edge cache (~8s), which is plenty fresh for
+        // the "new posts" banner and keeps polling nearly free at scale
+        const res = await fetch('/api/posts')
         const data = await res.json()
         const newest: Post[] = data.posts ?? []
         if (newest.length === 0) return

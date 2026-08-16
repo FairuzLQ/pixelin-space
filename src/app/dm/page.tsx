@@ -31,7 +31,7 @@ export default function DmPage() {
   useEffect(() => {
     const fp = getFingerprint()
     const nick = myNickname ?? ''
-    fetch(`/api/dm?fingerprint=${fp}&nickname=${encodeURIComponent(nick)}`)
+    fetch(`/api/dm?full=1&fingerprint=${fp}&nickname=${encodeURIComponent(nick)}`)
       .then(r => r.json())
       .then(d => {
         setConvs(d.conversations ?? [])

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/supabaseAdmin'
-import { isBlocked, ownsNickname, rateLimit, validateNickname } from '@/lib/apiGuards'
+import { isBlocked, ownsNickname, rateLimit, validateNickname, normalizeNickname } from '@/lib/apiGuards'
 
 function db() {
   try { return adminDb() } catch { return null }
@@ -10,6 +10,10 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const fingerprint = searchParams.get('fingerprint')
   const nickname = searchParams.get('nickname')
+  // full=1 -> enriched list (participants + last message) for the /dm page.
+  // default -> minimal (id + last_message_at) for the navbar unread poll, which
+  // runs every 30s per user; keeping it cheap avoids N+1 blowup at scale.
+  const full = searchParams.get('full') === '1'
   if (!fingerprint) return NextResponse.json({ error: 'missing fingerprint' }, { status: 400 })
 
   const supabase = db()
@@ -18,7 +22,7 @@ export async function GET(req: NextRequest) {
   // two separate parameterized queries — no string interpolation into filter values
   const q1 = supabase.from('dm_participants').select('conversation_id').eq('fingerprint', fingerprint)
   const q2 = nickname
-    ? supabase.from('dm_participants').select('conversation_id').eq('fingerprint', `pending_${nickname}`)
+    ? supabase.from('dm_participants').select('conversation_id').eq('fingerprint', `pending_${normalizeNickname(nickname)}`)
     : null
 
   const [r1, r2] = await Promise.all([q1, q2 ?? Promise.resolve({ data: [] })])
@@ -35,24 +39,33 @@ export async function GET(req: NextRequest) {
     .in('id', convIds)
     .order('last_message_at', { ascending: false })
 
-  const result = await Promise.all(
-    (convs ?? []).map(async (conv) => {
-      const { data: participants } = await supabase
-        .from('dm_participants')
-        .select('nickname') // fingerprint intentionally omitted
-        .eq('conversation_id', conv.id)
+  // cheap path: navbar only needs last_message_at to compute the unread dot
+  if (!full) return NextResponse.json({ conversations: convs ?? [] })
 
-      const { data: lastMsg } = await supabase
-        .from('dm_messages')
-        .select('content, sender_nickname, created_at')
-        .eq('conversation_id', conv.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+  // enriched path: two batched queries instead of 2 per conversation
+  const [{ data: parts }, { data: msgs }] = await Promise.all([
+    supabase.from('dm_participants').select('conversation_id, nickname').in('conversation_id', convIds),
+    supabase.from('dm_messages')
+      .select('conversation_id, content, sender_nickname, created_at')
+      .in('conversation_id', convIds)
+      .order('created_at', { ascending: false }),
+  ])
 
-      return { ...conv, participants: participants ?? [], last_message: lastMsg }
-    })
-  )
+  const partsByConv: Record<string, { nickname: string }[]> = {}
+  for (const p of parts ?? []) (partsByConv[p.conversation_id] ??= []).push({ nickname: p.nickname })
+
+  const lastByConv: Record<string, { content: string; sender_nickname: string; created_at: string }> = {}
+  for (const m of msgs ?? []) {
+    if (!lastByConv[m.conversation_id]) {
+      lastByConv[m.conversation_id] = { content: m.content, sender_nickname: m.sender_nickname, created_at: m.created_at }
+    }
+  }
+
+  const result = (convs ?? []).map(conv => ({
+    ...conv,
+    participants: partsByConv[conv.id] ?? [],
+    last_message: lastByConv[conv.id] ?? null,
+  }))
 
   return NextResponse.json({ conversations: result })
 }

@@ -35,7 +35,14 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query.limit(limit)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ posts: data })
+  const res = NextResponse.json({ posts: data })
+  // The default first page is identical for everyone (reactions are fetched
+  // separately per fingerprint), so cache it at the edge. 100 readers then share
+  // one Supabase hit per ~8s instead of hammering the DB on every load/poll.
+  if (sort === 'new' && !q && !tag && !cursor) {
+    res.headers.set('Cache-Control', 'public, s-maxage=8, stale-while-revalidate=30')
+  }
+  return res
 }
 
 export async function POST(req: NextRequest) {
