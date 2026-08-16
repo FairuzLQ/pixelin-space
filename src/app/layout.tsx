@@ -16,40 +16,79 @@ const mono = Space_Mono({
 })
 
 const SITE = 'https://pixelin.space'
+const DESCRIPTION =
+  'pixelin.space is a tiny anonymous social space — pick a nickname (no account, no email), post, react, comment, and DM. Everything resets every week.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
   title: {
-    default: 'pixelin.space',
+    default: 'pixelin.space — a tiny anonymous space',
     template: '%s · pixelin.space',
   },
-  description: 'a tiny anonymous space. pick a nickname, post, react, dm. resets every week.',
+  description: DESCRIPTION,
   applicationName: 'pixelin',
   manifest: '/manifest.webmanifest',
-  // favicon/apple-icon are provided by app/icon.svg + app/apple-icon.svg conventions
+  keywords: [
+    'pixelin', 'pixelin.space', 'anonymous social', 'anonymous chat',
+    'no account social', 'weekly reset', 'anonymous posting', 'anon dm',
+  ],
+  alternates: { canonical: '/' },
+  category: 'social',
+  // favicon/apple-icon are provided by the app/icon.svg convention
+  verification: {
+    google: 'YrMn2CRJpyMT2EsXgQ-XJLY9-NZwNPvQSdUTVCGbrzA',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
   openGraph: {
     type: 'website',
     url: SITE,
     siteName: 'pixelin.space',
-    title: 'pixelin.space',
-    description: 'a tiny anonymous space. resets every week.',
+    title: 'pixelin.space — a tiny anonymous space',
+    description: DESCRIPTION,
+    locale: 'en_US',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'pixelin.space',
-    description: 'a tiny anonymous space. resets every week.',
+    title: 'pixelin.space — a tiny anonymous space',
+    description: DESCRIPTION,
   },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#f4efe3',
+  themeColor: '#f2ecdd',
   colorScheme: 'light',
+}
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'pixelin.space',
+  alternateName: 'pixelin',
+  url: SITE,
+  description: DESCRIPTION,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <script
+          type="application/ld+json"
+          // own static data — safe to inline
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        {children}
+      </body>
     </html>
   )
 }
