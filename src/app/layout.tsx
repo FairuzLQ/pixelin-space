@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Space_Grotesk, Space_Mono } from 'next/font/google'
+import EasterEggs from '@/components/EasterEggs'
 import './globals.css'
 
 const sans = Space_Grotesk({
@@ -87,6 +88,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           // own static data — safe to inline
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        <EasterEggs />
         {children}
       </body>
     </html>

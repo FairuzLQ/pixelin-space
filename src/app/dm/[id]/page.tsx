@@ -104,17 +104,37 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  // Realtime: subscribe to broadcast channel for instant message delivery.
-  // We save the channel ref so send() can broadcast through the already-open WebSocket
-  // instead of making a separate REST call from the server.
+  // Pull any new messages through the AUTHORIZED REST endpoint. Never trust the
+  // realtime broadcast to carry content — the channel is public, so message
+  // bodies must only ever travel over the access-checked GET.
+  async function fetchNewMessages() {
+    if (accessDeniedRef.current) return
+    const since = lastMsgCreatedAt.current
+    try {
+      const res = await fetch(since ? buildDmUrl(`since=${encodeURIComponent(since)}`) : buildDmUrl())
+      if (!res.ok) return
+      const data = await res.json()
+      const newMsgs: DmMessage[] = data.messages ?? []
+      let anyAdded = false
+      for (const msg of newMsgs) {
+        if (addMessage(msg, false)) anyAdded = true
+      }
+      if (data.participants) setParticipants(data.participants)
+      if (anyAdded && isNearBottom()) setTimeout(() => scrollToBottom(), 50)
+    } catch { /* ignore */ }
+  }
+
+  // Realtime: the broadcast is only a content-less "ping" telling us to re-fetch.
+  // Anyone can subscribe to a channel by id, so we deliberately put NO message
+  // content on it — content comes from the authorized fetch above.
   useEffect(() => {
     const supabase = getSupabase()
     if (!supabase) return
 
     const channel = supabase
       .channel(`dm-${id}`)
-      .on('broadcast', { event: 'new-message' }, ({ payload }) => {
-        addMessage(payload as DmMessage)
+      .on('broadcast', { event: 'new-message' }, () => {
+        fetchNewMessages()
       })
       .subscribe()
 
@@ -127,24 +147,9 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  // Fallback poll (30s) — catches messages if Realtime WS disconnects
+  // Fallback poll (30s) — catches messages if the Realtime WS drops
   useEffect(() => {
-    const interval = setInterval(async () => {
-      if (accessDeniedRef.current) return // stop polling after access denied
-      const since = lastMsgCreatedAt.current
-      if (!since) return
-      try {
-        const res = await fetch(buildDmUrl(`since=${encodeURIComponent(since)}`))
-        if (!res.ok) return
-        const data = await res.json()
-        const newMsgs: DmMessage[] = data.messages ?? []
-        let anyAdded = false
-        for (const msg of newMsgs) {
-          if (addMessage(msg, false)) anyAdded = true
-        }
-        if (anyAdded && isNearBottom()) setTimeout(() => scrollToBottom(), 50)
-      } catch { /* ignore */ }
-    }, 30000)
+    const interval = setInterval(() => { fetchNewMessages() }, 30000)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
@@ -168,11 +173,12 @@ export default function DmChatPage({ params }: { params: Promise<{ id: string }>
       const data = await res.json().catch(() => ({}))
       if (data.message) {
         addMessage(data.message) // add for sender immediately
-        // broadcast to other participants via the already-open WebSocket (self: false by default)
+        // ping other participants — NO content on the public channel; they'll
+        // pull the message via their own authorized fetch
         realtimeChannelRef.current?.send({
           type: 'broadcast',
           event: 'new-message',
-          payload: data.message,
+          payload: { t: Date.now() },
         }).catch(() => {})
       } else if (!res.ok) {
         setInput(content) // restore on error

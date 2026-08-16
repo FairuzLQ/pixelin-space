@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminDb } from '@/lib/supabaseAdmin'
 import { broadcastEvent } from '@/lib/broadcast'
-import { anonDb } from '@/lib/apiGuards'
+import { anonDb, isBlocked } from '@/lib/apiGuards'
 import { censorText } from '@/lib/wordFilter'
 
 const MAX_CONTENT = 1000
@@ -78,6 +78,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   let admin
   try { admin = adminDb() } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
+
+  if (await isBlocked(admin, fingerprint)) {
+    return NextResponse.json({ error: 'blocked' }, { status: 403 })
   }
 
   const { data, error } = await admin
